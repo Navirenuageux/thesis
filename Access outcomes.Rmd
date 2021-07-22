@@ -1,0 +1,329 @@
+---
+title: "Access to WGS"
+output: html_document
+---
+
+################################################################# 
+######################### 1. Time to WGS ########################
+################################################################# 
+
+
+```{r}
+#56 patients who were into the program before their first use of healthcare resources: are those patients different?
+PD30b <- PD27 %>% filter(PD27$ttwgs < 0)
+
+table(PD30b$ethnicityD, useNA = "always")
+table(PD30$ethnicityD, useNA = "always")
+prop.test(x=c(46, 3091), n=c(90, 5757)) #no diff
+
+table(PD30b$ethnicity, useNA = "always")
+table(PD30$ethnicity, useNA = "always")
+
+table(PD30b$sex, useNA = "always")
+table(PD30$sex, useNA = "always")
+prop.test(x=c(51, 3282), n=c(90, 5757)) #no diff
+
+table(PD30$region_handling)
+table(PD30b$region_handling)
+#Different lengths: doesn't work for region_handling
+prop.table(table(PD30$Yorkshire_and_Humber, useNA = "always"))
+prop.table(table(PD30b$Yorkshire_and_Humber, useNA = "always"))
+prop.test(x=c(325, 67), n=c(5757, 90)) #sign diff for Y&H
+
+table(PD30$imd2, useNA = "always")
+table(PD30b$imd2, useNA = "always")
+prop.test(x=c(2067, 43), n=c(5757, 90)) #sign diff for most deprived 30%
+prop.test(x=c(2132, 24), n=c(5757, 90)) #borderline sign for Middle 40%
+prop.test(x=c(1451, 16), n=c(5757, 90)) #not sign for Least deprived 30%
+
+table(PD30$ethnosD, useNA = "always")
+table(PD30b$ethnosD, useNA = "always")
+prop.test(x=c(3089, 53), n=c(5757, 90)) #not sign
+prop.test(x=c(1048, 17), n=c(5757, 90)) #not sign
+```
+
+
+```{r}
+#Univariate analyses
+cox.e <- coxph(Surv(time=ttwgs_c) ~ ethnicityD, data=PD32c)
+cox.eg <- coxph(Surv(time=ttwgs_c) ~ ethnosD, data=PD32c)
+cox.i2 <- coxph(Surv(time=ttwgs_c) ~ imd2, data=PD32c)
+cox.s <- coxph(Surv(time=ttwgs_c) ~ sex, data=PD32c)
+cox.b <- coxph(Surv(time=ttwgs_c) ~ birth_year2, data=PD32c)
+summary(cox.e)
+summary(cox.eg)
+summary(cox.i2)
+summary(cox.s)
+summary(cox.b)
+#Sign: MD30% to LD30% and birth_year 
+
+round(exp(cbind(Estimate=coef(cox.i2), confint(cox.i2)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(cox.e), confint(cox.e)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(cox.eg), confint(cox.eg)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(cox.s), confint(cox.s)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(cox.b), confint(cox.b)))[,c(2, 1, 3)], 3)
+```
+
+
+```{r}
+#Full model
+cox.full.eg <- coxph(Surv(time=ttwgs_c) ~sex+ethnosD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD32c)
+
+summary(cox.full.eg)
+round(exp(cbind(Estimate=coef(cox.full.eg), confint(cox.full.eg)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Proportional hazards assumption
+test.eg <- cox.zph(cox.full.eg)
+test.eg
+#Nothing too bad!
+
+#ggcoxzph(test.eg)
+#par(mfrow=(c(1, 1)))
+#plot(test.eg)
+```
+
+
+```{r}
+#Forward selection
+#Dataset no na
+PD32.nona.eg <- na.omit(PD32c[c("ttwgs_c", "sex", "ethnosD", "imd2", "birth_year2", "rururb2", "East_of_England", "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Oxford", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+cox.i.eg <- coxph(Surv(time=ttwgs_c) ~1, data=PD32.nona.eg)
+
+#Full models: no na
+cox.fullnona.eg <- coxph(Surv(time=ttwgs_c) ~sex+ethnosD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD32.nona.eg)
+
+cox.fs.eg <- step(cox.i.eg, direction="forward", scope=formula(cox.fullnona.eg), data=PD32.nona.eg, trace=F)
+
+summary(cox.fs.eg)
+round(exp(cbind(Estimate=coef(cox.fs.eg), confint(cox.fs.eg)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Multicollinearity?
+vif(cox.fs.eg) #nothing too bad
+
+#cannot run vif() for full models because of dummy variables: taking them out
+cox.nod.eg <-  coxph(Surv(time=ttwgs) ~sex+ethnosD+imd2+birth_year2+rururb2+region_handling+after2016, data=PD30)
+
+vif(cox.nod.eg) #nothing too bad
+```
+
+
+####################### Ethnicity ######################
+
+
+```{r}
+#Full model
+cox.full.eg <- coxph(Surv(time=ttwgs_c) ~sex+ethnicityD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD32c)
+
+summary(cox.full.eg)
+round(exp(cbind(Estimate=coef(cox.full.eg), confint(cox.full.eg)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Proportional hazards assumption
+test.eg <- cox.zph(cox.full.eg)
+test.eg
+#Nothing too bad!
+
+#ggcoxzph(test.eg)
+#par(mfrow=(c(1, 1)))
+#plot(test.eg)
+```
+
+
+```{r}
+#Forward selection
+#Dataset no na
+PD32.nona.eg <- na.omit(PD32c[c("ttwgs_c", "sex", "ethnicityD", "imd2", "birth_year2", "rururb2", "East_of_England", "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Oxford", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+cox.i.eg <- coxph(Surv(time=ttwgs_c) ~1, data=PD32.nona.eg)
+
+#Full models: no na
+cox.fullnona.eg <- coxph(Surv(time=ttwgs_c) ~sex+ethnicityD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD32.nona.eg)
+
+cox.fs.eg <- step(cox.i.eg, direction="forward", scope=formula(cox.fullnona.eg), data=PD32.nona.eg, trace=F)
+
+summary(cox.fs.eg)
+round(exp(cbind(Estimate=coef(cox.fs.eg), confint(cox.fs.eg)))[,c(2, 1, 3)], 3)
+```
+
+
+
+################################################################# 
+################# Additional survival analyses ##################
+################################################################# 
+
+
+```{r}
+#Distribution of survival times
+plot(survfit(cox.full.eg), xlab="Days to WGS", ylab="Proportion of probands enrolled", fun="event", xaxs="i", yaxs="i")
+segments(x0=580, y0=0, x1=580, y1=0.5, lty=2)
+segments(x0=0, y0=0.5, x1=580, y1=0.5, lty=2)
+legend("bottomright",legend=c("Median: 580 days", "(Range: 0 to 1345 days)"), lty = c(2, 0), cex=0.75)
+
+#median(na.omit(PD32c$ttwgs_c))
+#range(na.omit(PD32c$ttwgs_c))
+
+#length(which(PD32$ttwgs>891))/length(PD32$ttwgs)
+#survfit(cox.full.eg) #med 580 (567, 597)
+```
+
+```{r}
+#Log rank test for differences in median survival times in days
+wilcox.test(data=PD32c, as.numeric(ttwgs_c) ~ sex)
+wilcox.test(data=PD32c, as.numeric(ttwgs_c) ~ ethnosD)
+wilcox.test(data=PD32c, as.numeric(ttwgs_c) ~ ethnicityD)
+kruskal.test(data=PD32c, as.numeric(ttwgs_c) ~ imd2)   #more than 2 groups
+kruskal.test(data=PD32c, as.numeric(ttwgs_c) ~ birth_year) 
+
+survdiff(Surv(ttwgs_c)~sex, data=PD32c) 
+survdiff(Surv(ttwgs_c)~birth_year, data=PD32c) 
+survdiff(Surv(ttwgs_c)~ethnosD, data=PD32c) 
+survdiff(Surv(ttwgs_c)~ethnicityD, data=PD32c) 
+survdiff(Surv(ttwgs_c)~imd2, data=PD32c) 
+```
+
+```{r}
+#Median time to wgs: not taken from the models, but 'naive' ones
+median(PD32c$ttwgs_c[PD32c$sex=="Male"])
+median(PD32c$ttwgs_c[PD32c$sex=="Female"])
+
+median(na.omit(PD32c$ttwgs_c[PD32c$ethnosD=="White"]))
+median(na.omit(PD32c$ttwgs_c[PD32c$ethnosD=="BAME"]))
+
+median(na.omit(PD32c$ttwgs_c[PD32c$ethnicityD=="White"]))
+median(na.omit(PD32c$ttwgs_c[PD32c$ethnicityD=="BAME"]))
+
+median(na.omit(PD32c$ttwgs_c[PD32c$imd2=="Least deprived 30%"]))
+median(na.omit(PD32c$ttwgs_c[PD32c$imd2=="Middle 40%"]))
+median(na.omit(PD32c$ttwgs_c[PD32c$imd2=="Most deprived 30%"]))
+
+median(na.omit(PD32c$ttwgs_c[PD32c$birth_year==2015]))
+median(na.omit(PD32c$ttwgs_c[PD32c$birth_year==2016]))
+median(na.omit(PD32c$ttwgs_c[PD32c$birth_year==2017]))
+median(na.omit(PD32c$ttwgs_c[PD32c$birth_year==2018]))
+```
+
+
+
+################################################################# 
+################ 2. Availability of family data #################
+################################################################# 
+
+```{r}
+#Rerunning previous analyses with new variables
+#Chi square test with new variables
+chisq.test(PD32$family_members, PD32$imd_decile)         
+chisq.test(PD32$family_members, PD32$imd2)  
+chisq.test(PD32$family_members2, PD32$imd_decile)
+chisq.test(PD32$family_members2, PD32$imd2)             #and we got significance!
+```
+
+```{r}
+#Difference of proportions between sexes?
+chisq.test(PD32$family_members, PD32$sex)  
+chisq.test(PD32$family_members2, PD32$sex)
+```
+
+```{r}
+#Difference of proportions between ethnicities?
+chisq.test(PD32$family_members, PD32$ethnicity)  
+chisq.test(PD32$family_members2, PD32$ethnicity)
+chisq.test(PD32$family_members, PD32$ethnicityD)  
+chisq.test(PD32$family_members2, PD32$ethnicityD)
+```
+
+
+```{r}
+#Univariate analyses
+
+lr.i2 <- glm(family_members3 ~ imd2, data=PD32, family=binomial)
+lr.s <- glm(family_members3 ~ sex, data=PD32, family=binomial)
+lr.egD <- glm(family_members3 ~ ethnosD, data=PD32, family=binomial)
+lr.eD <- glm(family_members3 ~ ethnicityD, data=PD32, family=binomial)
+lr.b <- glm(family_members3 ~ birth_year2, data=PD32, family=binomial)
+
+summary(lr.i2)
+summary(lr.s)
+summary(lr.egD)
+summary(lr.eD)
+summary(lr.b)
+
+round(exp(cbind(Estimate=coef(lr.i2), confint(lr.i2)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(lr.s), confint(lr.s)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(lr.egD), confint(lr.egD)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(lr.eD), confint(lr.eD)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(lr.b), confint(lr.b)))[,c(2, 1, 3)], 3)
+
+```
+
+```{r}
+#Full model
+lr.full.eg <- glm(family_members3 ~sex+ethnosD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD32, family=binomial)
+
+summary(lr.full.eg)
+round(exp(cbind(Estimate=coef(lr.full.eg), confint(lr.full.eg)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Forward selection
+#Dataset no na
+PD32.nona.eg <- na.omit(PD32[c("family_members3", "sex", "ethnosD", "imd2", "birth_year2", "rururb2", "East_of_England", "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "Scotland", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+lr.i.eg <- glm(family_members3 ~1, data=PD32.nona.eg, family=binomial)
+
+#Full models: no na
+lr.fullnona.eg <- glm(family_members3 ~sex+ethnosD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+Scotland+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD32.nona.eg, family=binomial)
+
+lr.fs.eg <- step(lr.i.eg, direction="forward", scope=formula(lr.fullnona.eg), data=PD32.nona.eg, trace=F)
+
+summary(lr.fs.eg)
+round(exp(cbind(Estimate=coef(lr.fs.eg), confint(lr.fs.eg)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Multicollinearity?
+vif(lr.fs.eg) #nothing too bad
+
+#cannot runn vif() for full models because of dummy variables: taking them out
+lr.nod.eg <- glm(family_members3 ~sex+ethnosD+imd2+birth_year2+rururb2+region_handling, data=PD32, family=binomial)
+
+vif(lr.nod.eg) #nothing too bad
+```
+
+
+####################### Ethnicity ######################
+
+
+```{r}
+#Full model
+lr.full.eg <- glm(family_members3 ~sex+ethnicityD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD32, family=binomial)
+
+summary(lr.full.eg)
+round(exp(cbind(Estimate=coef(lr.full.eg), confint(lr.full.eg)))[,c(2, 1, 3)], 3)
+```
+
+
+```{r}
+#Forward selection
+#Dataset no na
+PD32.nona.eg <- na.omit(PD32[c("family_members3", "sex", "ethnicityD", "imd2", "birth_year2", "rururb2", "East_of_England", "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "Scotland", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+lr.i.eg <- glm(family_members3 ~1, data=PD32.nona.eg, family=binomial)
+
+#Full models: no na
+lr.fullnona.eg <- glm(family_members3 ~sex+ethnicityD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+Scotland+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD32.nona.eg, family=binomial)
+
+lr.fs.eg <- step(lr.i.eg, direction="forward", scope=formula(lr.fullnona.eg), data=PD32.nona.eg, trace=F)
+
+summary(lr.fs.eg)
+round(exp(cbind(Estimate=coef(lr.fs.eg), confint(lr.fs.eg)))[,c(2, 1, 3)], 3)
+```

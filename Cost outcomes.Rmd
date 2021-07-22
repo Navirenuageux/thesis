@@ -1,0 +1,314 @@
+---
+title: "Cost outcomes"
+output: html_document
+---
+#################################################################
+#################### 1. Mean differences ########################
+#################################################################
+
+
+```{r}
+#Test if the data is normally distributed: Anderson darling test for samples over 5000
+ad.test(as.numeric(PD14$total_cost))
+#p value < 0.05: not normally distributed
+```
+
+```{r echo=F}
+#Wilcoxon test: sex (2 groups)
+wilcox.test(total_cost ~ sex, data=PD14)
+#borderline significant
+```
+
+```{r echo=F}
+#Kruskal-Wallis test: Ethnicity (bcs many levels)
+kruskal.test(data=PD14, total_cost ~ ethnicity)
+pwt6 <- pairwise.wilcox.test(PD14$total_cost, PD14$ethnicity, p.adjust.method = "BH")
+round(pwt6$p.value, 3)
+
+#Significant, because of Unknown and Other variables: not very helpful
+```
+
+```{r echo=F}
+#Wilcoxon test: ethnicityD (2 groups)
+wilcox.test(total_cost ~ ethnicityD, data=PD14)
+#Not significant
+```
+
+```{r echo=F}
+#Kruskal-Wallis test: imd_decile
+kruskal.test(data=PD14, total_cost ~ imd_decile)
+#Significant
+
+pwt8 <- pairwise.wilcox.test(PD14$total_cost, PD14$imd_decile, p.adjust.method = "BH")
+round(pwt8$p.value, 2)
+#Significant: difficult to read, extremes seem to be significant
+```
+
+```{r}
+#imd2: Kruskal-Wallis test (3 groups)
+kruskal.test(data=PD14, total_cost ~ imd2)
+#Significant
+pwt9 <- pairwise.wilcox.test(PD14$total_cost, PD14$imd2, p.adjust.method = "BH")
+round(pwt9$p.value, 5)
+#All significant
+```
+
+
+#################################################################
+########################## 3. Regression ########################
+#################################################################
+
+
+```{r}
+#Patients with 0 costs: are they different from the rest of the population
+PD26b <- PD30[which(PD30$ann_cost_APC==0),]
+#nrow(PD26b)
+
+table(PD26b$sex, useNA = "always")
+table(PD30$sex, useNA = "always")
+prop.test(x=c(213, 16624), n=c(471, 32312)) #Sign: 51% females in full pop but only 45% here
+
+table(PD30$region_handling)
+table(PD26b$region_handling)
+#Different lengths: doesn't work for region_handling
+#Nothing striking
+
+table(PD30$imd2, useNA = "always") #321/369 NA!
+#Makes sense: no secondary care data, no imd value
+table(PD26b$imd2, useNA = "always")
+#Total without NA values
+prop.test(x=c(126, 9298), n=c(471, 32312)) #not sign
+prop.test(x=c(191, 12386), n=c(471, 32312)) #not sign
+prop.test(x=c(153, 10324), n=c(471, 32312)) #not sign
+
+table(PD30$ethnosD, useNA = "always")
+table(PD26b$ethnosD, useNA = "always")
+prop.test(x=c(70, 4586), n=c(471, 32312)) #borderline sign for BAMES
+prop.test(x=c(257, 18970), n=c(471, 32312)) #Sign for Whites
+prop.test(x=c(144, 8756), n=c(471, 32312))
+
+```
+
+```{r}
+#Univariate models: AE
+gr.i2.AE<- glm(ann_cost_AE ~ imd2,data=subset(PD34, non_zero_AE==1), family=Gamma(link= log))
+gr.eD.AE<- glm(ann_cost_AE ~ ethnicityD,data=subset(PD34, non_zero_AE==1), family=Gamma(link= log))
+gr.egD.AE<- glm(ann_cost_AE ~ ethnosD,data=subset(PD34, non_zero_AE==1), family=Gamma(link= log))
+gr.s.AE <- glm(ann_cost_AE ~ sex,data=subset(PD34, non_zero_AE==1), family=Gamma(link= log))
+gr.b.AE <- glm(ann_cost_AE ~ birth_year2,data=subset(PD34, non_zero_AE==1), family=Gamma(link= log))
+
+summary(gr.i2.AE) #sign
+summary(gr.eD.AE) #sign
+summary(gr.egD.AE) #sign
+summary(gr.s.AE) #not sign
+summary(gr.b.AE) #sign
+
+round(exp(cbind(Estimate=coef(gr.i2.AE), confint(gr.i2.AE)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(gr.eD.AE), confint(gr.eD.AE)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(gr.egD.AE), confint(gr.egD.AE)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(gr.s.AE), confint(gr.s.AE)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(gr.b.AE), confint(gr.b.AE)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Univariate models: APC
+gr.i2.APC<- glm(ann_cost_APC ~ imd2,data=subset(PD34, non_zero_APC==1), family=Gamma(link= log))
+gr.eD.APC<- glm(ann_cost_APC ~ ethnicityD,data=subset(PD34, non_zero_APC==1), family=Gamma(link= log))
+gr.egD.APC<- glm(ann_cost_APC ~ ethnosD,data=subset(PD34, non_zero_APC==1), family=Gamma(link= log))
+gr.s.APC <- glm(ann_cost_APC ~ sex,data=subset(PD34, non_zero_APC==1), family=Gamma(link= log))
+gr.b.APC <- glm(ann_cost_APC ~ birth_year2,data=subset(PD34, non_zero_APC==1), family=Gamma(link= log))
+
+summary(gr.i2.APC) #both sign
+summary(gr.eD.APC) #sign
+summary(gr.egD.APC) #sign
+summary(gr.s.APC) #borderline sign
+summary(gr.b.APC) #sign
+
+round(exp(cbind(Estimate=coef(gr.i2.APC), confint(gr.i2.APC)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(gr.eD.APC), confint(gr.eD.APC)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(gr.egD.APC), confint(gr.egD.APC)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(gr.s.APC), confint(gr.s.APC)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(gr.b.APC), confint(gr.b.APC)))[,c(2, 1, 3)], 3)
+```
+
+
+```{r}
+#Univariate models: OP
+gr.i2.OP<- glm(ann_cost_OP ~ imd2,data=subset(PD34, non_zero_OP==1), family=Gamma(link= log))
+gr.eD.OP<- glm(ann_cost_OP ~ ethnicityD,data=subset(PD34, non_zero_OP==1), family=Gamma(link= log))
+gr.egD.OP<- glm(ann_cost_OP ~ ethnosD,data=subset(PD34, non_zero_OP==1), family=Gamma(link= log))
+gr.s.OP <- glm(ann_cost_OP ~ sex,data=subset(PD34, non_zero_OP==1), family=Gamma(link= log))
+gr.b.OP <- glm(ann_cost_OP ~ birth_year2,data=subset(PD34, non_zero_OP==1), family=Gamma(link= log))
+
+summary(gr.i2.OP) #same as for dummies
+summary(gr.eD.OP) #sign
+summary(gr.egD.OP) #sign
+summary(gr.s.OP) #sign
+summary(gr.b.OP) #sign
+
+round(exp(cbind(Estimate=coef(gr.i2.OP), confint(gr.i2.OP)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(gr.eD.OP), confint(gr.eD.OP)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(gr.egD.OP), confint(gr.egD.OP)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(gr.s.OP), confint(gr.s.OP)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(gr.b.OP), confint(gr.b.OP)))[,c(2, 1, 3)], 3)
+```
+
+
+```{r}
+#Full model : AE
+gr.full.eg.AE<- glm(ann_cost_AE ~ imd2+ethnosD+sex +birth_year2 +rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+Scotland+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber,data=subset(PD34, non_zero_AE==1), family=Gamma(link= log))
+
+summary(gr.full.eg.AE)
+round(exp(cbind(Estimate=coef(gr.full.eg.AE), confint(gr.full.eg.AE)))[,c(2, 1, 3)], 3)
+```
+
+
+```{r}
+#Forward selection: AE
+#Dataset no na
+PD34.nona.eg.AE <- na.omit(PD34[c("non_zero_AE","ann_cost_AE", "sex", "ethnosD", "imd2", "birth_year2", "rururb2", "East_of_England",  "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+gr.i.eg.AE <- glm(ann_cost_AE ~1, data=subset(PD34.nona.eg.AE, non_zero_AE==1), family=Gamma(link= log))
+
+#Full models: no na
+gr.fullnona.eg.AE <- glm(ann_cost_AE ~sex+ethnosD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=subset(PD34.nona.eg.AE, non_zero_AE==1), family=Gamma(link= log))
+
+gr.fs.eg.AE <- step(gr.i.eg.AE, direction="forward", scope=formula(gr.fullnona.eg.AE), data=subset(PD34.nona.eg.AE, non_zero_AE==1), trace=F)
+
+summary(gr.fs.eg.AE) #birth_year, sex, ethnos, rururb, regions
+round(exp(cbind(Estimate=coef(gr.fs.eg.AE), confint(gr.fs.eg.AE)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Full model : APC
+gr.full.eg.APC<- glm(ann_cost_APC ~ imd2+ethnosD+sex+birth_year2+ann_epidur_apc+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber,data=subset(PD34, non_zero_APC==1), family=Gamma(link= log))
+
+summary(gr.full.eg.APC)
+round(exp(cbind(Estimate=coef(gr.full.eg.APC), confint.default(gr.full.eg.APC)))[,c(2, 1, 3)], 3)
+
+```
+
+```{r}
+#Forward selection: APC
+#Dataset no na
+PD34.nona.eg.APC <- na.omit(PD34[c("non_zero_APC","ann_cost_APC", "sex", "ethnosD", "imd2", "birth_year2","ann_epidur_apc", "rururb2", "East_of_England",  "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "Scotland", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+gr.i.eg.APC <- glm(ann_cost_APC ~1, data=subset(PD34.nona.eg.APC, non_zero_APC==1), family=Gamma(link= log))
+
+#Full models: no na
+gr.fullnona.eg.APC <- glm(ann_cost_APC ~sex+ethnosD+imd2++birth_year2+ann_epidur_apc+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+Scotland+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=subset(PD34.nona.eg.APC, non_zero_APC==1), family=Gamma(link= log))
+
+gr.fs.eg.APC <- step(gr.i.eg.APC, direction="forward", scope=formula(gr.fullnona.eg.APC), data=subset(PD34.nona.eg.APC, non_zero_APC==1), trace=F)
+
+summary(gr.fs.eg.APC)
+round(exp(cbind(Estimate=coef(gr.fs.eg.APC), confint.default(gr.fs.eg.APC)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Full model : OP
+gr.full.eg.OP<- glm(ann_cost_OP ~ imd2+ethnosD+sex +birth_year2 +rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+Scotland+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber,data=subset(PD34, non_zero_OP==1), family=Gamma(link= log))
+
+summary(gr.full.eg.OP)
+round(exp(cbind(Estimate=coef(gr.full.eg.OP), confint(gr.full.eg.OP)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Forward selection: OP
+#Dataset no na
+PD34.nona.eg.OP <- na.omit(PD34[c("non_zero_OP","ann_cost_OP", "sex", "ethnosD", "imd2", "birth_year2", "rururb2", "East_of_England", "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+gr.i.eg.OP <- glm(ann_cost_OP ~1, data=subset(PD34.nona.eg.OP, non_zero_OP==1), family=Gamma(link= log))
+
+#Full models: no na
+gr.fullnona.eg.OP <- glm(ann_cost_OP ~sex+ethnosD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=subset(PD34.nona.eg.OP, non_zero_OP==1), family=Gamma(link= log))
+
+gr.fs.eg.OP <- step(gr.i.eg.OP, direction="forward", scope=formula(gr.fullnona.eg.OP), data=subset(PD34.nona.eg.OP, non_zero_OP==1), trace=F)
+
+summary(gr.fs.eg.OP) 
+round(exp(cbind(Estimate=coef(gr.fs.eg.OP), confint(gr.fs.eg.OP)))[,c(2, 1, 3)], 3)
+```
+
+
+####################### Ethnicity ######################
+
+
+```{r}
+#Full model : AE
+gr.full.eg.AE<- glm(ann_cost_AE ~ imd2+ethnicityD+sex +birth_year2 +rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+Scotland+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber,data=subset(PD34, non_zero_AE==1), family=Gamma(link= log))
+
+summary(gr.full.eg.AE)
+round(exp(cbind(Estimate=coef(gr.full.eg.AE), confint(gr.full.eg.AE)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Forward selection: AE
+#Dataset no na
+PD34.nona.eg.AE <- na.omit(PD34[c("non_zero_AE","ann_cost_AE", "sex", "ethnicityD", "imd2", "birth_year2", "rururb2", "East_of_England",  "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+gr.i.eg.AE <- glm(ann_cost_AE ~1, data=subset(PD34.nona.eg.AE, non_zero_AE==1), family=Gamma(link= log))
+
+#Full models: no na
+gr.fullnona.eg.AE <- glm(ann_cost_AE ~sex+ethnicityD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=subset(PD34.nona.eg.AE, non_zero_AE==1), family=Gamma(link= log))
+
+gr.fs.eg.AE <- step(gr.i.eg.AE, direction="forward", scope=formula(gr.fullnona.eg.AE), data=subset(PD34.nona.eg.AE, non_zero_AE==1), trace=F)
+
+summary(gr.fs.eg.AE) 
+round(exp(cbind(Estimate=coef(gr.fs.eg.AE), confint(gr.fs.eg.AE)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Full model : APC
+gr.full.eg.APC<- glm(ann_cost_APC ~ imd2+ethnicityD+sex+birth_year2+ann_epidur_apc+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber,data=subset(PD34, non_zero_APC==1), family=Gamma(link= log))
+
+summary(gr.full.eg.APC)
+round(exp(cbind(Estimate=coef(gr.full.eg.APC), confint.default(gr.full.eg.APC)))[,c(2, 1, 3)], 3)
+
+```
+
+```{r}
+#Forward selection: APC
+#Dataset no na
+PD34.nona.eg.APC <- na.omit(PD34[c("non_zero_APC","ann_cost_APC", "sex", "ethnicityD", "imd2", "birth_year2","ann_epidur_apc", "rururb2", "East_of_England",  "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "Scotland", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+gr.i.eg.APC <- glm(ann_cost_APC ~1, data=subset(PD34.nona.eg.APC, non_zero_APC==1), family=Gamma(link= log))
+
+#Full models: no na
+gr.fullnona.eg.APC <- glm(ann_cost_APC ~sex+ethnicityD+imd2++birth_year2+ann_epidur_apc+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+Scotland+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=subset(PD34.nona.eg.APC, non_zero_APC==1), family=Gamma(link= log))
+
+gr.fs.eg.APC <- step(gr.i.eg.APC, direction="forward", scope=formula(gr.fullnona.eg.APC), data=subset(PD34.nona.eg.APC, non_zero_APC==1), trace=F)
+
+summary(gr.fs.eg.APC)
+round(exp(cbind(Estimate=coef(gr.fs.eg.APC), confint.default(gr.fs.eg.APC)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Full model : OP
+gr.full.eg.OP<- glm(ann_cost_OP ~ imd2+ethnicityD+sex +birth_year2 +rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+Scotland+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber,data=subset(PD34, non_zero_OP==1), family=Gamma(link= log))
+
+summary(gr.full.eg.OP)
+round(exp(cbind(Estimate=coef(gr.full.eg.OP), confint(gr.full.eg.OP)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Forward selection: OP
+#Dataset no na
+PD34.nona.eg.OP <- na.omit(PD34[c("non_zero_OP","ann_cost_OP", "sex", "ethnicityD", "imd2", "birth_year2", "rururb2", "East_of_England", "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+gr.i.eg.OP <- glm(ann_cost_OP ~1, data=subset(PD34.nona.eg.OP, non_zero_OP==1), family=Gamma(link= log))
+
+#Full models: no na
+gr.fullnona.eg.OP <- glm(ann_cost_OP ~sex+ethnicityD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=subset(PD34.nona.eg.OP, non_zero_OP==1), family=Gamma(link= log))
+
+gr.fs.eg.OP <- step(gr.i.eg.OP, direction="forward", scope=formula(gr.fullnona.eg.OP), data=subset(PD34.nona.eg.OP, non_zero_OP==1), trace=F)
+
+summary(gr.fs.eg.OP) 
+round(exp(cbind(Estimate=coef(gr.fs.eg.OP), confint(gr.fs.eg.OP)))[,c(2, 1, 3)], 3)
+```
+
+

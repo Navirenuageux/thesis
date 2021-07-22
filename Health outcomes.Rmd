@@ -1,0 +1,526 @@
+---
+title: "Health outcomes"
+output: html_document
+---
+#################################################################
+##################### 1. Mean differences #######################
+#################################################################
+
+
+############# Step 1: Number of episodes ############# 
+
+
+```{r}
+#We use PD30 (see Cost outcomes): got rid of structural 0 costs/episodes patients where 0 are due to region_handling=Northern Ireland, Scotland or Wales n=32614
+
+#Who has 0 episodes
+length(which(is.na(PD30$total_episodes)==T))  #0 NAs
+length(which(PD30$total_episodes==0)) #369 patients with 0 episodes (1.13%)
+```
+
+
+```{r}
+#test of normality: anderson-darling test for samples over 5000
+ad.test(PD30$ann_epi)
+#Significant: not normally distributed
+```
+
+```{r}
+#test of differences between sexes
+wilcox.test(data=PD30, ann_epi ~ sex)
+#Significant
+```
+
+```{r echo=F}
+#Kruskal-Wallis test: ethnicity
+kruskal.test(data=PD30, ann_epi ~ as.factor(ethnicity))
+pwt5 <- pairwise.wilcox.test(PD30$ann_epi, PD30$ethnicity, p.adjust.method = "BH")
+pwt5$p.value
+
+kruskal.test(data=PD30, ann_epi ~ as.factor(ethnos))
+pwt5b <- pairwise.wilcox.test(PD30$ann_epi, PD30$ethnos, p.adjust.method = "BH")
+pwt5b$p.value
+
+#Significant: lots of levels
+```
+
+```{r}
+#test of differences White vs BAME
+wilcox.test(data=PD30, ann_epi ~ ethnicityD)
+wilcox.test(data=PD30, ann_epi ~ ethnosD)
+#Significant
+```
+
+```{r echo=F}
+#Kruskal-Wallis test: imd_decile: sign
+kruskal.test(data=PD30, ann_epi ~ imd_decile)
+pwt1 <- pairwise.wilcox.test(PD30$ann_epi, PD30$imd_decile, p.adjust.method = "BH")
+pwt1$p.value
+```
+
+```{r echo=F}
+#Kruskal-Wallis test: imd2: sign
+kruskal.test(data=PD30, ann_epi ~ imd2)
+pwt2 <- pairwise.wilcox.test(PD30$ann_epi, PD30$imd2, p.adjust.method = "BH")
+pwt2$p.value
+```
+
+
+############# Step 2: Deaths ############# 
+
+```{r include=F}
+#Do the 922 patients without NHS secondary data have no death date either? yes, so take them out and use PD14
+death1 <- PD20[(PD20$region_handling=="Wales" & PD20$total_cost==0 |PD20$region_handling=="Northern Ireland" & PD20$total_cost==0 |PD20$region_handling=="Scotland" & PD20$total_cost==0),]
+length(which(is.na(death1$death_date)))
+#yes: 921/922, so take them out and use PD14
+```
+
+```{r}
+table(PD30$dead) #no 32451, yes 163
+round(prop.table(table(PD30$dead))*100, 2) #0.5% yes
+```
+
+
+```{r echo=F}
+#recoding
+PD31 <- PD30
+PD31$dead2 <- as.numeric(ifelse(PD14$dead=="yes", 1, ifelse(PD14$dead=="no", 0, ".")))
+#table(PD31$dead2) #ok
+```
+
+Number of deaths per ethnicity
+```{r echo=F}
+death2 <- PD31 %>% group_by(ethnicity) %>% summarise(n(), sum(dead2))
+death3 <- rbind(death2, c("Total", sum(death2[, 2]), sum(death2[, 3])))
+colnames(death3) <- c("Ethnicity", "N", "Deaths")
+death3 %>% kable(align='ll')
+```
+
+```{r}
+#Test of proportions of deaths between sexes
+chisq.test(PD31$sex, PD31$dead) 
+```
+
+```{r echo=F}
+#Test of proportions of deaths between ethnicity groups
+chisq.test(PD31$ethnicity, PD31$dead)       #not significant
+chisq.test(PD31$ethnicityD, PD31$dead)   #not significant
+```
+
+```{r echo=F}
+#Test of proportions of deaths between deprivation deciles
+chisq.test(PD31$imd_decile, PD31$dead)       #not significant
+chisq.test(PD31$imd2, PD31$dead)
+```
+
+############# Step 3: Family case solved ############# 
+
+
+
+```{r echo=F}
+table(PD26$family_case_solved, useNA = "always")
+round(prop.table(table(PD26$family_case_solved, useNA = "always"))*100, 2)
+table(PD26$csf1V12, useNA = "always")
+round(prop.table(table(PD26$csf1V12, useNA = "always"))*100, 2)
+```
+
+```{r}
+#Test of proportions of family case solved between sexes
+chisq.test(PD26$sex, PD26$family_case_solved)    
+chisq.test(PD26$sex, PD26$csf1V12)  
+#Not significant
+```
+
+```{r echo=F}
+#Test of proportions of family case solved between ethnicity groups
+chisq.test(PD26$ethnicity, PD26$family_case_solved)    
+chisq.test(PD26$ethnicityD, PD26$family_case_solved)   
+chisq.test(PD26$ethnicity, PD26$csf1V12)    
+chisq.test(PD26$ethnicityD, PD26$csf1V12) 
+#All significant
+```
+
+```{r echo=F}
+#Test of proportions of family case solved between deprivation deciles
+chisq.test(PD26$imd_decile, PD26$family_case_solved)  #no 
+chisq.test(PD26$imd2, PD26$family_case_solved)        #yes
+chisq.test(PD26$imd_decile, PD26$csf1V12)             #no
+chisq.test(PD26$imd2, PD26$csf1V12)                   #yes
+```
+
+
+#################################################################
+######################### 3. Regression #########################
+#################################################################
+
+############# Step 1: Number of episodes ############# 
+
+
+```{r}
+#Univariate models: AE
+nbr.i2.AE<- glm(ann_epi_AE ~ imd2,data=subset(PD34, non_zero_AE==1), family=Gamma(link= log))
+nbr.eD.AE<- glm(ann_epi_AE ~ ethnicityD,data=subset(PD34, non_zero_AE==1), family=Gamma(link= log))
+nbr.egD.AE<- glm(ann_epi_AE ~ ethnosD,data=subset(PD34, non_zero_AE==1), family=Gamma(link= log))
+nbr.s.AE <- glm(ann_epi_AE ~ sex,data=subset(PD34, non_zero_AE==1), family=Gamma(link= log))
+nbr.b.AE <- glm(ann_epi_AE ~ birth_year2,data=subset(PD34, non_zero_AE==1), family=Gamma(link= log))
+
+summary(nbr.i2.AE) #sign
+summary(nbr.eD.AE) #sign
+summary(nbr.egD.AE) #sign
+summary(nbr.s.AE) #not sign
+summary(nbr.b.AE) #sign
+
+round(exp(cbind(Estimate=coef(nbr.i2.AE), confint(nbr.i2.AE)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(nbr.s.AE), confint(nbr.s.AE)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(nbr.egD.AE), confint(nbr.egD.AE)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(nbr.eD.AE), confint(nbr.eD.AE)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(nbr.b.AE), confint(nbr.b.AE)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Univariate models: APC
+nbr.i2.APC<- glm(ann_epi_APC ~ imd2,data=subset(PD34, non_zero_APC==1), family=Gamma(link= log))
+nbr.eD.APC<- glm(ann_epi_APC ~ ethnicityD,data=subset(PD34, non_zero_APC==1), family=Gamma(link= log))
+nbr.egD.APC<- glm(ann_epi_APC ~ ethnosD,data=subset(PD34, non_zero_APC==1), family=Gamma(link= log))
+nbr.s.APC <- glm(ann_epi_APC ~ sex,data=subset(PD34, non_zero_APC==1), family=Gamma(link= log))
+nbr.b.APC <- glm(ann_epi_APC ~ birth_year2,data=subset(PD34, non_zero_APC==1), family=Gamma(link= log))
+
+summary(nbr.i2.APC) #both sign
+summary(nbr.eD.APC) #sign
+summary(nbr.egD.APC) #sign
+summary(nbr.s.APC) #borderline sign
+summary(nbr.b.APC) #sign
+
+round(exp(cbind(Estimate=coef(nbr.i2.APC), confint(nbr.i2.APC)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(nbr.s.APC), confint(nbr.s.APC)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(nbr.egD.APC), confint(nbr.egD.APC)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(nbr.eD.APC), confint(nbr.eD.APC)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(nbr.b.APC), confint(nbr.b.APC)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Univariate models: OP
+nbr.i2.OP<- glm(ann_epi_OP ~ imd2,data=subset(PD34, non_zero_OP==1), family=Gamma(link= log))
+nbr.eD.OP<- glm(ann_epi_OP ~ ethnicityD,data=subset(PD34, non_zero_OP==1), family=Gamma(link= log))
+nbr.egD.OP<- glm(ann_epi_OP ~ ethnosD,data=subset(PD34, non_zero_OP==1), family=Gamma(link= log))
+nbr.s.OP <- glm(ann_epi_OP ~ sex,data=subset(PD34, non_zero_OP==1), family=Gamma(link= log))
+nbr.b.OP <- glm(ann_epi_OP ~ birth_year2,data=subset(PD34, non_zero_OP==1), family=Gamma(link= log))
+
+summary(nbr.i2.OP) #same as for dummies
+summary(nbr.eD.OP) #sign
+summary(nbr.egD.OP) #sign
+summary(nbr.s.OP) #sign
+summary(nbr.b.OP) #sign
+
+round(exp(cbind(Estimate=coef(nbr.i2.OP), confint(nbr.i2.OP)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(nbr.s.OP), confint(nbr.s.OP)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(nbr.egD.OP), confint(nbr.egD.OP)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(nbr.eD.OP), confint(nbr.eD.OP)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(nbr.b.OP), confint(nbr.b.OP)))[,c(2, 1, 3)], 3)
+```
+
+
+
+```{r}
+#Full model : AE
+nbr.full.eg.AE<- glm(ann_epi_AE ~ imd2+ethnosD+sex +birth_year2 +rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber,data=subset(PD34, non_zero_AE==1), family=Gamma(link= log))
+
+summary(nbr.full.eg.AE)
+round(exp(cbind(Estimate=coef(nbr.full.eg.AE), confint(nbr.full.eg.AE)))[,c(2, 1, 3)], 3)
+```
+
+
+```{r}
+#Forward selection: AE
+#Dataset no na
+PD34.nona.eg.AE <- na.omit(PD34[c("non_zero_AE","ann_epi_AE", "sex", "ethnosD", "imd2", "birth_year2", "rururb2", "East_of_England", "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "Scotland", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+nbr.i.eg.AE <- glm(ann_epi_AE ~1, data=subset(PD34.nona.eg.AE, non_zero_AE==1), family=Gamma(link= log))
+
+#Full models: no na
+nbr.fullnona.eg.AE <- glm(ann_epi_AE ~sex+ethnosD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+Scotland+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=subset(PD34.nona.eg.AE, non_zero_AE==1), family=Gamma(link= log))
+
+nbr.fs.eg.AE <- step(nbr.i.eg.AE, direction="forward", scope=formula(nbr.fullnona.eg.AE), data=subset(PD34.nona.eg.AE, non_zero_AE==1), trace=F)
+
+summary(nbr.fs.eg.AE) #birth_year, sex, ethnos, rururb, regions
+round(exp(cbind(Estimate=coef(nbr.fs.eg.AE), confint(nbr.fs.eg.AE)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Full model : APC
+nbr.full.eg.APC<- glm(ann_epi_APC ~ imd2+ethnosD+sex +birth_year2 +rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber,data=subset(PD34, non_zero_APC==1), family=Gamma(link= log))
+
+summary(nbr.full.eg.APC)
+round(exp(cbind(Estimate=coef(nbr.full.eg.APC), confint(nbr.full.eg.APC)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Forward selection: APC
+#Dataset no na
+PD34.nona.eg.APC <- na.omit(PD34[c("non_zero_APC","ann_epi_APC", "sex", "ethnosD", "imd2", "birth_year2", "rururb2", "East_of_England", "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+nbr.i.eg.APC <- glm(ann_epi_APC ~1, data=subset(PD34.nona.eg.APC, non_zero_APC==1), family=Gamma(link= log))
+
+#Full models: no na
+nbr.fullnona.eg.APC <- glm(ann_epi_APC ~sex+ethnosD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=subset(PD34.nona.eg.APC, non_zero_APC==1), family=Gamma(link= log))
+
+nbr.fs.eg.APC <- step(nbr.i.eg.APC, direction="forward", scope=formula(nbr.fullnona.eg.APC), data=subset(PD34.nona.eg.APC, non_zero_APC==1), trace=F)
+
+summary(nbr.fs.eg.APC)
+round(exp(cbind(Estimate=coef(nbr.fs.eg.APC), confint(nbr.fs.eg.APC)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Full model : OP
+nbr.full.eg.OP<- glm(ann_epi_OP ~ imd2+ethnosD+sex +birth_year2 +rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber,data=subset(PD34, non_zero_OP==1), family=Gamma(link= log))
+
+summary(nbr.full.eg.OP)
+round(exp(cbind(Estimate=coef(nbr.full.eg.OP), confint(nbr.full.eg.OP)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Forward selection: OP
+#Dataset no na
+PD34.nona.eg.OP <- na.omit(PD34[c("non_zero_OP","ann_epi_OP", "sex", "ethnosD", "imd2", "birth_year2", "rururb2", "East_of_England", "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+nbr.i.eg.OP <- glm(ann_epi_OP ~1, data=subset(PD34.nona.eg.OP, non_zero_OP==1), family=Gamma(link= log))
+
+#Full models: no na
+nbr.fullnona.eg.OP <- glm(ann_epi_OP ~sex+ethnosD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=subset(PD34.nona.eg.OP, non_zero_OP==1), family=Gamma(link= log))
+
+nbr.fs.eg.OP <- step(nbr.i.eg.OP, direction="forward", scope=formula(nbr.fullnona.eg.OP), data=subset(PD34.nona.eg.OP, non_zero_OP==1), trace=F)
+
+summary(nbr.fs.eg.OP) 
+round(exp(cbind(Estimate=coef(nbr.fs.eg.OP), confint(nbr.fs.eg.OP)))[,c(2, 1, 3)], 3)
+```
+
+
+####################### Ethnicity ######################
+
+```{r}
+
+#Full model : AE
+nbr.full.eg.AE<- glm(ann_epi_AE ~ imd2+ethnicityD+sex +birth_year2 +rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber,data=subset(PD34, non_zero_AE==1), family=Gamma(link= log))
+
+summary(nbr.full.eg.AE)
+round(exp(cbind(Estimate=coef(nbr.full.eg.AE), confint(nbr.full.eg.AE)))[,c(2, 1, 3)], 3)
+```
+
+
+```{r}
+#Forward selection: AE
+#Dataset no na
+PD34.nona.eg.AE <- na.omit(PD34[c("non_zero_AE","ann_epi_AE", "sex", "ethnicityD", "imd2", "birth_year2", "rururb2", "East_of_England", "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+nbr.i.eg.AE <- glm(ann_epi_AE ~1, data=subset(PD34.nona.eg.AE, non_zero_AE==1), family=Gamma(link= log))
+
+#Full models: no na
+nbr.fullnona.eg.AE <- glm(ann_epi_AE ~sex+ethnicityD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=subset(PD34.nona.eg.AE, non_zero_AE==1), family=Gamma(link= log))
+
+nbr.fs.eg.AE <- step(nbr.i.eg.AE, direction="forward", scope=formula(nbr.fullnona.eg.AE), data=subset(PD34.nona.eg.AE, non_zero_AE==1), trace=F)
+
+summary(nbr.fs.eg.AE) #birth_year, sex, ethnos, rururb, regions
+round(exp(cbind(Estimate=coef(nbr.fs.eg.AE), confint(nbr.fs.eg.AE)))[,c(2, 1, 3)], 3)
+```
+
+
+```{r}
+#Full model : APC
+nbr.full.eg.APC<- glm(ann_epi_APC ~ imd2+ethnicityD+sex +birth_year2 +rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber,data=subset(PD34, non_zero_APC==1), family=Gamma(link= log))
+
+summary(nbr.full.eg.APC)
+round(exp(cbind(Estimate=coef(nbr.full.eg.APC), confint(nbr.full.eg.APC)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Forward selection: APC
+#Dataset no na
+PD34.nona.eg.APC <- na.omit(PD34[c("non_zero_APC","ann_epi_APC", "sex", "ethnicityD", "imd2", "birth_year2", "rururb2", "East_of_England", "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+nbr.i.eg.APC <- glm(ann_epi_APC ~1, data=subset(PD34.nona.eg.APC, non_zero_APC==1), family=Gamma(link= log))
+
+#Full models: no na
+nbr.fullnona.eg.APC <- glm(ann_epi_APC ~sex+ethnicityD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=subset(PD34.nona.eg.APC, non_zero_APC==1), family=Gamma(link= log))
+
+nbr.fs.eg.APC <- step(nbr.i.eg.APC, direction="forward", scope=formula(nbr.fullnona.eg.APC), data=subset(PD34.nona.eg.APC, non_zero_APC==1), trace=F)
+
+summary(nbr.fs.eg.APC)
+round(exp(cbind(Estimate=coef(nbr.fs.eg.APC), confint(nbr.fs.eg.APC)))[,c(2, 1, 3)], 3)
+```
+
+
+```{r}
+#Full model : OP
+nbr.full.eg.OP<- glm(ann_epi_OP ~ imd2+ethnicityD+sex +birth_year2 +rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber,data=subset(PD34, non_zero_OP==1), family=Gamma(link= log))
+
+summary(nbr.full.eg.OP)
+round(exp(cbind(Estimate=coef(nbr.full.eg.OP), confint(nbr.full.eg.OP)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Forward selection: OP
+#Dataset no na
+PD34.nona.eg.OP <- na.omit(PD34[c("non_zero_OP","ann_epi_OP", "sex", "ethnicityD", "imd2", "birth_year2", "rururb2", "East_of_England", "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+nbr.i.eg.OP <- glm(ann_epi_OP ~1, data=subset(PD34.nona.eg.OP, non_zero_OP==1), family=Gamma(link= log))
+
+#Full models: no na
+nbr.fullnona.eg.OP <- glm(ann_epi_OP ~sex+ethnicityD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=subset(PD34.nona.eg.OP, non_zero_OP==1), family=Gamma(link= log))
+
+nbr.fs.eg.OP <- step(nbr.i.eg.OP, direction="forward", scope=formula(nbr.fullnona.eg.OP), data=subset(PD34.nona.eg.OP, non_zero_OP==1), trace=F)
+
+summary(nbr.fs.eg.OP) 
+round(exp(cbind(Estimate=coef(nbr.fs.eg.OP), confint(nbr.fs.eg.OP)))[,c(2, 1, 3)], 3)
+```
+
+
+############# Step 2: Deaths ############# 
+
+
+```{r}
+#Univariate analyses
+d.eD <- glm(dead2 ~ ethnicityD, data=PD10, family=binomial)
+d.egD <- glm(dead2 ~ ethnosD, data=PD10, family=binomial)
+d.i <- glm(dead2 ~ imd_decile, data=PD10, family=binomial)
+d.i2 <- glm(dead2 ~ imd2, data=PD10, family=binomial)
+d.b <- glm(dead2 ~ birth_year2, data=PD10, family=binomial)
+d.s <- glm(dead2 ~ sex, data=PD10, family=binomial)
+summary(d.eD)
+summary(d.egD)
+summary(d.i)
+summary(d.i2)
+summary(d.b)
+summary(d.s)
+#nothing significant
+```
+
+```{r}
+#Full models
+d.full.e <- glm(dead2 ~sex+ethnicityD+imd2+birth_year2+rururb2+East_of_England+Genomics_Network_Alliance+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+Scotland+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD10, family=binomial)
+d.full.eg <- glm(dead2 ~sex+ethnosD+imd2+birth_year2+rururb2+East_of_England+Genomics_Network_Alliance+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+Scotland+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD10, family=binomial)
+
+summary(d.full.e)
+summary(d.full.eg)
+```
+
+
+############# Step 3: Family case solved ############# 
+
+```{r}
+#univariate models
+csf.eD <- glm(csf2 ~ ethnicityD, data=PD34, family=binomial)
+csf.egD <- glm(csf2 ~ ethnosD, data=PD34, family=binomial)
+csf.i2 <- glm(csf2 ~ imd2, data=PD34, family=binomial)
+csf.b <- glm(csf2 ~ birth_year2, data=PD34, family=binomial)
+csf.s <- glm(csf2 ~ sex, data=PD34, family=binomial)
+
+summary(csf.eD)
+summary(csf.egD)
+summary(csf.i2)
+summary(csf.b)
+summary(csf.s)
+
+round(exp(cbind(Estimate=coef(csf.i2), confint(csf.i2)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(csf.s), confint(csf.s)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(csf.egD), confint(csf.egD)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(csf.eD), confint(csf.eD)))[,c(2, 1, 3)], 3)
+round(exp(cbind(Estimate=coef(csf.b), confint(csf.b)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Full model
+csf.full.eg <- glm(csf2 ~sex+ethnosD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+Scotland+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD30, family=binomial)
+
+summary(csf.full.eg)
+round(exp(cbind(Estimate=coef(csf.full.eg), confint(csf.full.eg)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Forward selection
+#Dataset no na
+PD30.nona.eg <- na.omit(PD30[c("csf2", "sex", "ethnosD", "imd2", "birth_year2", "rururb2", "East_of_England", "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "Scotland", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+csf.i.eg <- glm(csf2 ~1, data=PD30.nona.eg, family=binomial)
+
+#Full models: no na
+csf.fullnona.eg <- glm(csf2 ~sex+ethnosD+imd2+birth_year2+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+Scotland+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD30.nona.eg, family=binomial)
+
+csf.fs.eg <- step(csf.i.eg, direction="forward", scope=formula(csf.fullnona.eg), data=PD30.nona.eg, trace=F)
+
+summary(csf.fs.eg)
+round(exp(cbind(Estimate=coef(csf.fs.eg), confint(csf.fs.eg)))[,c(2, 1, 3)], 3)
+```
+
+#Add family relatives over 2
+
+
+```{r}
+#Full model : ancestry
+csf.full.eg2 <- glm(csf2 ~sex+ethnosD+imd2+birth_year2+family_members3+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD34, family=binomial)
+
+summary(csf.full.eg2)
+round(exp(cbind(Estimate=coef(csf.full.eg2), confint(csf.full.eg2)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Forward selection : ancestry
+#Dataset no na
+PD34.nona.eg2 <- na.omit(PD34[c("csf2", "sex", "ethnosD", "imd2", "birth_year2", "family_members3",  "rururb2", "East_of_England", "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "Scotland", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+csf.i.eg2 <- glm(csf2 ~1, data=PD34.nona.eg2, family=binomial)
+
+#Full models: no na
+csf.fullnona.eg2 <- glm(csf2 ~sex+ethnosD+imd2+birth_year2+family_members3+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+Scotland+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD34.nona.eg2, family=binomial)
+
+csf.fs.eg2 <- step(csf.i.eg2, direction="forward", scope=formula(csf.fullnona.eg2), data=PD34.nona.eg2, trace=F)
+
+summary(csf.fs.eg2)
+round(exp(cbind(Estimate=coef(csf.fs.eg2), confint(csf.fs.eg2)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Full model : ethnicity
+csf.full.eg2 <- glm(csf2 ~sex+ethnicityD+imd2+birth_year2+family_members3+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD34, family=binomial)
+
+summary(csf.full.eg2)
+round(exp(cbind(Estimate=coef(csf.full.eg2), confint(csf.full.eg2)))[,c(2, 1, 3)], 3)
+```
+
+```{r}
+#Forward selection : ethnicity
+#Dataset no na
+PD34.nona.eg2 <- na.omit(PD34[c("csf2", "sex", "ethnicityD", "imd2", "birth_year2", "family_members3",  "rururb2", "East_of_England", "Greater_Manchester", "North_East_and_Cumbria", "North_Thames", "North_West", "Northern_Ireland", "Oxford", "Scotland", "South_Coast", "South_West_Peninsula", "Wales", "West_London", "West_Midlands", "West_of_England", "Yorkshire_and_Humber")]) 
+
+#Intercept only models:no na
+csf.i.eg2 <- glm(csf2 ~1, data=PD34.nona.eg2, family=binomial)
+
+#Full models: no na
+csf.fullnona.eg2 <- glm(csf2 ~sex+ethnicityD+imd2+birth_year2+family_members3+rururb2+East_of_England+Greater_Manchester+North_East_and_Cumbria+North_Thames+North_West+Northern_Ireland+Oxford+Scotland+South_Coast+South_West_Peninsula+Wales+West_London+West_Midlands+West_of_England+Yorkshire_and_Humber, data=PD34.nona.eg2, family=binomial)
+
+csf.fs.eg2 <- step(csf.i.eg2, direction="forward", scope=formula(csf.fullnona.eg2), data=PD34.nona.eg2, trace=F)
+
+summary(csf.fs.eg2)
+round(exp(cbind(Estimate=coef(csf.fs.eg2), confint(csf.fs.eg2)))[,c(2, 1, 3)], 3)
+```
+
+
+```{r}
+#Multicollinearity?
+vif(csf.fs.e)  #nothing too bad
+vif(csf.fs.eg) #nothing too bad
+
+#cannot run vif() for full models because of dummy variables: taking them out
+csf.nod.e <- glm(csf2 ~sex+ethnicityD+imd2+birth_year2+rururb2+region_handling, data=PD28, family=binomial)
+csf.nod.eg <- glm(csf2 ~sex+ethnosD+imd2+birth_year2+rururb2+region_handling, data=PD28, family=binomial)
+
+vif(csf.nod.e)  #nothing too bad
+vif(csf.nod.eg) #nothing too bad
+```

@@ -1,0 +1,548 @@
+---
+title: "Concentration"
+output: html_document
+---
+
+#################################################################
+############### Concentration curves and Indexes ################
+#################################################################
+
+############# Curves ############# 
+
+```{r echo=FALSE}
+#Table for imd_decile
+T1 <- PD30 %>% group_by(imd_decile) %>% summarise(n(), mean(na.omit(ann_epi_AE)), sum(na.omit(ann_epi_AE)), mean(na.omit(ann_epi_APC)), sum(na.omit(ann_epi_APC)), mean(na.omit(ann_epi_OP)), sum(na.omit(ann_epi_OP)), mean(na.omit(ann_cost_AE)), sum(na.omit(ann_cost_AE)), mean(na.omit(ann_cost_APC)), sum(na.omit(ann_cost_APC)), mean(na.omit(ann_cost_OP)), sum(na.omit(ann_cost_OP)))
+T2 <- as.data.frame(T1)
+T3 <- T2[-11, ]
+T4 <- rbind(T3, c("Total", sum(T3[, 2]), mean(T3[, 3]), sum(T3[, 4]), mean(T3[, 5]), sum(T3[, 6]), mean(T3[, 7]), sum(T3[, 8]), mean(T3[, 9]), sum(T3[, 10]), mean(T3[, 11]), sum(T3[, 12]), mean(T3[, 13]), sum(T3[, 14])))
+colnames(T4) <- c("imd_decile", "n", "mean_ann_epi_AE", "sum_ann_epi_AE", "mean_ann_epi_APC", "sum_ann_epi_APC", "mean_ann_epi_OP", "sum_ann_epi_OP", "mean_ann_cost_AE", "sum_ann_cost_AE", "mean_ann_cost_APC", "sum_ann_cost_APC", "mean_ann_cost_OP", "sum_ann_cost_OP")
+
+#Order the rows
+c1 <- c(10, 9, 8, 7, 6, 2, 3, 4, 5, 1, 11)
+T4$rank <- c1
+T5 <- T4 %>% arrange(rank)
+```
+
+```{r echo=F}
+#get rid of the total
+T6 <- T5[-11,]
+```
+
+```{r}
+#mean annualized costs per patient per type of care
+mu_epi_AE <- mean(as.numeric(T6$sum_ann_epi_AE))
+mu_epi_APC<- mean(as.numeric(T6$sum_ann_epi_APC))
+mu_epi_OP<- mean(as.numeric(T6$sum_ann_epi_OP))
+mu_cost_AE <- mean(as.numeric(T6$sum_ann_cost_AE))
+mu_cost_APC <- mean(as.numeric(T6$sum_ann_cost_APC))
+mu_cost_OP <- mean(as.numeric(T6$sum_ann_cost_OP))
+```
+
+
+```{r echo=F}
+#cumulative proportions: choose to plot the mean on y axis
+#=generalized concentration curves
+#because if not, the difference in numbers of episodes could be explained by the difference in number of people in the deprivation decile category, and we could do this only with a standardized population
+
+#epi axes
+yaxis_epi_AE <- cumsum(as.numeric(T6$sum_ann_epi_AE))/sum(as.numeric(T6$sum_ann_epi_AE))
+xaxis_epi_AE <- cumsum(as.numeric(T6$n))/sum(as.numeric(T6$n))
+xaxis_epi_AE <- c(0, xaxis_epi_AE) 
+yaxis_epi_AE <- c(0, yaxis_epi_AE) 
+
+yaxis_epi_APC <- cumsum(as.numeric(T6$sum_ann_epi_APC))/sum(as.numeric(T6$sum_ann_epi_APC))
+xaxis_epi_APC <- cumsum(as.numeric(T6$n))/sum(as.numeric(T6$n))
+xaxis_epi_APC <- c(0, xaxis_epi_APC) 
+yaxis_epi_APC <- c(0, yaxis_epi_APC)
+
+yaxis_epi_OP <- cumsum(as.numeric(T6$sum_ann_epi_OP))/sum(as.numeric(T6$sum_ann_epi_OP))
+xaxis_epi_OP <- cumsum(as.numeric(T6$n))/sum(as.numeric(T6$n))
+xaxis_epi_OP <- c(0, xaxis_epi_OP) 
+yaxis_epi_OP <- c(0, yaxis_epi_OP)
+
+#cost axes
+yaxis_cost_AE <- cumsum(as.numeric(T6$sum_ann_cost_AE))/sum(as.numeric(T6$sum_ann_cost_AE))
+xaxis_cost_AE <- cumsum(as.numeric(T6$n))/sum(as.numeric(T6$n))
+xaxis_cost_AE <- c(0, xaxis_cost_AE) 
+yaxis_cost_AE <- c(0, yaxis_cost_AE)
+
+yaxis_cost_APC <- cumsum(as.numeric(T6$sum_ann_cost_APC))/sum(as.numeric(T6$sum_ann_cost_APC))
+xaxis_cost_APC <- cumsum(as.numeric(T6$n))/sum(as.numeric(T6$n))
+xaxis_cost_APC <- c(0, xaxis_cost_APC) 
+yaxis_cost_APC <- c(0, yaxis_cost_APC)
+
+yaxis_cost_OP <- cumsum(as.numeric(T6$sum_ann_cost_OP))/sum(as.numeric(T6$sum_ann_cost_OP))
+xaxis_cost_OP <- cumsum(as.numeric(T6$n))/sum(as.numeric(T6$n))
+xaxis_cost_OP <- c(0, xaxis_cost_OP) 
+yaxis_cost_OP <- c(0, yaxis_cost_OP)
+```
+
+```{r}
+#Relative concentration curves: episodes
+plot(xaxis_epi_AE, yaxis_epi_AE, xlab="Cumulative % of the sample ordered by IMD deciles", ylab="Cumulative % of annualized episodes", type="l", col="#CC0000", xlim=c(0,1), ylim=c(0,1))
+lines(xaxis_epi_APC, yaxis_epi_APC, type="l", col="#0066CC")
+lines(xaxis_epi_OP, yaxis_epi_OP, type="l", col="#009933")
+abline(0, 1)
+legend("bottomright",legend=c("AE", "APC", "OP"), lty = c(1, 1, 1), col=c("#CC0000", "#0066CC", "#009933"), cex=0.65)
+text(0, 0.95, "(a)")
+```
+
+```{r}
+#Relative concentration curves: costs AE
+plot(xaxis_cost_AE, yaxis_cost_AE, xlab="Cumulative % of the sample ordered by IMD deciles", ylab="Cumulative % of annualized costs", type="l", col="#CC0000", xlim=c(0,1), ylim=c(0,1))
+lines(xaxis_cost_APC, yaxis_cost_APC, type="l", col="#0066CC")
+lines(xaxis_cost_OP, yaxis_cost_OP, type="l", col="#009933")
+abline(0, 1)
+legend("bottomright",legend=c("AE", "APC", "OP"), lty = c(1, 1, 1), col=c("#CC0000", "#0066CC", "#009933"), cex=0.65)
+text(0, 0.95, "(b)")
+```
+
+
+```{r echo=F}
+#Episodes AE
+plot(xaxis_epi_AE, yaxis_epi_AE, type="l", col="#CC0000", xlim=c(0,1), ylim=c(0,1))
+abline(0, 1)
+
+
+#Generalized concentration curve
+up <- par(mar=c(5, 6, 4, 2)+0.1)
+plot(xaxis_epi_AE, yaxis_epi_AE*mu_epi_AE, xlab="Cumulative % of the sample ordered by IMD deciles", ylab="Cumulative amount of\n annualized AE episodes", type="l", col="#CC0000", xlim=c(0,1), ylim=c(0,2115))
+abline(0, 2110)
+text(0, 2000, "(a)")
+par(up)
+#range(yaxis_epi_AE*mu_epi_AE)
+
+```
+
+```{r echo=F}
+#Episodes APC
+plot(xaxis_epi_APC, yaxis_epi_APC, type="l", col="blue", xlim=c(0,1), ylim=c(0,1))
+abline(0, 1)
+
+#Generalized concentration curve
+up <- par(mar=c(5, 6, 4, 2)+0.1)
+plot(xaxis_epi_APC, yaxis_epi_APC*mu_epi_APC, xlab="Cumulative % of the sample ordered by IMD deciles", ylab="Cumulative amount of\n annualized APC episodes", type="l", col="#0066CC", xlim=c(0,1), ylim=c(0,4740))
+abline(0, 4730)
+text(0, 4500, "(b)")
+par(up)
+#range(yaxis_epi_APC*mu_epi_APC)
+```
+
+```{r echo=F}
+#Episodes OP
+plot(xaxis_epi_OP, yaxis_epi_OP, type="l", col="blue", xlim=c(0,1), ylim=c(0,1))
+abline(0, 1)
+
+#Generalized concentration curve
+up <- par(mar=c(5, 6, 4, 2)+0.1)
+plot(xaxis_epi_OP, yaxis_epi_OP*mu_epi_OP, xlab="Cumulative % of the sample ordered by IMD deciles", ylab="Cumulative amount of\n annualized OP episodes", type="l", col="#009933", xlim=c(0,1), ylim=c(0,19810))
+abline(0, 19800)
+text(0, 19000, "(c)")
+par(up)
+#range(yaxis_epi_OP*mu_epi_OP)
+```
+
+```{r echo=F}
+#Costs AE
+plot(xaxis_cost_AE, yaxis_cost_AE, type="l", col="blue", xlim=c(0,1), ylim=c(0,1))
+abline(0, 1)
+
+#Generalized concentration curve
+up <- par(mar=c(5, 6, 4, 2)+0.1)
+plot(xaxis_cost_AE, yaxis_cost_AE*mu_cost_AE, xlab="Cumulative % of the sample ordered by IMD deciles", ylab="Cumulative amount of\n annualized AE costs", type="l", col="#CC0000", xlim=c(0,1), ylim=c(0,334445))
+abline(0, 334400)
+text(0, 315000, "(d)")
+par(up)
+```
+
+```{r echo=F}
+#Costs APC
+plot(xaxis_cost_APC, yaxis_cost_APC, type="l", col="blue", xlim=c(0,1), ylim=c(0,1))
+abline(0, 1)
+
+#Generalized concentration curve
+up <- par(mar=c(5, 6, 4, 2)+0.1)
+plot(xaxis_cost_APC, yaxis_cost_APC*mu_cost_APC, xlab="Cumulative % of the sample ordered by IMD deciles", ylab="Cumulative amount of\n annualized APC costs", type="l", col="#0066CC", xlim=c(0,1), ylim=c(0,9294384))
+abline(0, 9294300)
+text(0, 8700000, "(e)")
+par(up)
+```
+
+```{r echo=F}
+#Costs OP
+plot(xaxis_cost_OP, yaxis_cost_OP, type="l",  col="blue", xlim=c(0,1), ylim=c(0,1))
+abline(0, 1)
+
+#Generalized concentration curve
+up <- par(mar=c(5, 6, 4, 2)+0.1)
+plot(xaxis_cost_OP, yaxis_cost_OP*mu_cost_OP, xlab="Cumulative % of the sample ordered by IMD deciles", ylab="Cumulative amount of\n annualized OP costs", type="l", col="#009933", xlim=c(0,1), ylim=c(0,3306217))
+abline(0, 3306200)
+text(0, 3100000, "(f)")
+par(up)
+#range(yaxis_cost_OP*mu_cost_OP)
+```
+
+############# Indexes ############# 
+
+```{r echo=F}
+#Hand calculation of the Concentration index
+T6$N_cum <- cumsum(as.numeric(T6$n))/sum(as.numeric(T6$n))
+
+T6$epi_cum_AE <- cumsum(as.numeric(T6$sum_ann_epi_AE))/sum(as.numeric(T6$sum_ann_epi_AE))
+T6$cost_cum_AE <- cumsum(as.numeric(T6$sum_ann_cost_AE))/sum(as.numeric(T6$sum_ann_cost_AE))
+
+T6$epi_cum_APC <- cumsum(as.numeric(T6$sum_ann_epi_APC))/sum(as.numeric(T6$sum_ann_epi_APC))
+T6$cost_cum_APC <- cumsum(as.numeric(T6$sum_ann_cost_APC))/sum(as.numeric(T6$sum_ann_cost_APC))
+
+T6$epi_cum_OP <- cumsum(as.numeric(T6$sum_ann_epi_OP))/sum(as.numeric(T6$sum_ann_epi_OP))
+T6$cost_cum_OP <- cumsum(as.numeric(T6$sum_ann_cost_OP))/sum(as.numeric(T6$sum_ann_cost_OP))
+```
+
+```{r echo=F}
+#Concentration index for episodes
+CI1 <- rep(NA, 9)
+for (i in 1:9) {
+    CI <- as.numeric(T6[i,16])*as.numeric(T6[i+1,17])-as.numeric(T6[i+1,16])*as.numeric(T6[i,17])
+    CI1[[i]] <- CI
+}
+CI_epi_AE <- append(CI1, 0.00000)
+
+CI2 <- rep(NA, 9)
+for (i in 1:9) {
+    CI <- as.numeric(T6[i,16])*as.numeric(T6[i+1,19])-as.numeric(T6[i+1,16])*as.numeric(T6[i,19])
+    CI2[[i]] <- CI
+}
+CI_epi_APC <- append(CI2, 0.00000)
+
+CI3 <- rep(NA, 9)
+for (i in 1:9) {
+    CI <- as.numeric(T6[i,16])*as.numeric(T6[i+1,21])-as.numeric(T6[i+1,16])*as.numeric(T6[i,21])
+    CI3[[i]] <- CI
+}
+CI_epi_OP <- append(CI3, 0.00000)
+
+#Concentration index for costs
+CI4 <- rep(NA, 9)
+for (i in 1:9) {
+    CI <- as.numeric(T6[i,16])*as.numeric(T6[i+1,18])-as.numeric(T6[i+1,16])*as.numeric(T6[i,18])
+    CI4[[i]] <- CI
+}
+CI_cost_AE <- append(CI4, 0.00000)
+
+CI5 <- rep(NA, 9)
+for (i in 1:9) {
+    CI <- as.numeric(T6[i,16])*as.numeric(T6[i+1,20])-as.numeric(T6[i+1,16])*as.numeric(T6[i,20])
+    CI5[[i]] <- CI
+}
+CI_cost_APC <- append(CI5, 0.00000)
+
+CI6 <- rep(NA, 9)
+for (i in 1:9) {
+    CI <- as.numeric(T6[i,16])*as.numeric(T6[i+1,22])-as.numeric(T6[i+1,16])*as.numeric(T6[i,22])
+    CI6[[i]] <- CI
+}
+CI_cost_OP <- append(CI6, 0.00000)
+#colnames(T6)
+```
+
+```{r}
+#Final calculation
+T6$CI_epi_AE <- CI_epi_AE
+T6$CI_epi_APC <- CI_epi_APC
+T6$CI_epi_OP <- CI_epi_OP
+
+T6$CI_cost_AE <- CI_cost_AE
+T6$CI_cost_APC <- CI_cost_APC
+T6$CI_cost_OP <- CI_cost_OP
+
+#Concentration indices
+sum(CI_epi_AE)
+sum(CI_epi_APC)
+sum(CI_epi_OP)
+
+sum(CI_cost_AE)
+sum(CI_cost_APC)
+sum(CI_cost_OP)
+```
+
+```{r}
+#Generalized concentration indices
+sum(CI_epi_AE)*mu_epi_AE
+sum(CI_epi_APC)*mu_epi_APC
+sum(CI_epi_OP)*mu_epi_OP
+
+sum(CI_cost_AE)*mu_cost_AE
+sum(CI_cost_APC)*mu_cost_APC
+sum(CI_cost_OP)*mu_cost_OP
+```
+
+
+############# Indexes:confidence intervals ############# 
+
+
+```{r}
+#Calculation of confidence interval for CIndex (formula in book)
+#f: Proportions of group t in the full sample: ok
+T6$f<- as.numeric(T6$n)/sum(as.numeric(T6$n))
+```
+
+```{r}
+#R: fractional ranks
+R <- rep(NA, 10)
+for (i in 1:10) {
+    R1 <- sum(T6[1:i-1,29])+0.5*T6[i,29]
+    R[[i]] <- R1
+}
+T6$R <- R
+```
+
+
+```{r}
+#Episodes
+q_epi_AE <- rep(NA, 10)
+for (i in 1:10) {
+    q1 <- (1/mu_epi_AE)*sum(as.numeric(T6[1:i,3])*as.numeric(T6[1:i,29]))
+    q_epi_AE[[i]] <- q1
+}
+T6$q_epi_AE <- q_epi_AE
+
+q_epi_APC <- rep(NA, 10)
+for (i in 1:10) {
+    q1 <- (1/mu_epi_APC)*sum(as.numeric(T6[1:i,5])*as.numeric(T6[1:i,29]))
+    q_epi_APC[[i]] <- q1
+}
+T6$q_epi_APC <- q_epi_APC
+
+q_epi_OP <- rep(NA, 10)
+for (i in 1:10) {
+    q1 <- (1/mu_epi_OP)*sum(as.numeric(T6[1:i,7])*as.numeric(T6[1:i,29]))
+    q_epi_OP[[i]] <- q1
+}
+T6$q_epi_OP <- q_epi_OP
+
+#Costs
+q_cost_AE <- rep(NA, 10)
+for (i in 1:10) {
+    q1 <- (1/mu_cost_AE)*sum(as.numeric(T6[1:i,9])*as.numeric(T6[1:i,29]))
+    q_cost_AE[[i]] <- q1
+}
+T6$q_cost_AE <- q_cost_AE
+
+q_cost_APC <- rep(NA, 10)
+for (i in 1:10) {
+    q1 <-(1/mu_cost_APC)*sum(as.numeric(T6[1:i,11])*as.numeric(T6[1:i,29]))
+    q_cost_APC[[i]] <- q1
+}
+T6$q_cost_APC <- q_cost_APC
+
+q_cost_OP <- rep(NA, 10)
+for (i in 1:10) {
+    q1 <- (1/mu_cost_OP)*sum(as.numeric(T6[1:i,13])*as.numeric(T6[1:i,29]))
+    q_cost_OP[[i]] <- q1
+}
+T6$q_cost_OP <- q_cost_OP
+```
+
+```{r}
+CIepiAE <- sum(CI_epi_AE)
+CIepiAPC <- sum(CI_epi_APC)
+CIepiOP <- sum(CI_epi_OP)
+
+CIcostAE <- sum(CI_cost_AE)
+CIcostAPC <- sum(CI_cost_APC)
+CIcostOP <- sum(CI_cost_OP)
+
+sample_size <- sum(as.numeric(T6$n))
+```
+
+```{r}
+#Episodes
+a_epi_AE <- rep(NA, 10)
+for (i in 2:10) {
+  a1 <-(as.numeric(T6[i,3])/mu_epi_AE)*(2*as.numeric(T6[i,30])-1-CIepiAE)+2-as.numeric(T6[i-1,31])-as.numeric(T6[i,31])
+  a_epi_AE[[i]] <- a1
+}
+T6$a_epi_AE <- a_epi_AE
+T6$a_epi_AE[1] <-(as.numeric(T6[1,3])/mu_epi_AE)*(2*as.numeric(T6[1,30])-1-CIepiAE)+2-as.numeric(T6[1,31])
+
+a_epi_APC <- rep(NA, 10)
+for (i in 2:10) {
+  a1 <-(as.numeric(T6[i,5])/mu_epi_APC)*(2*as.numeric(T6[i,30])-1-CIepiAPC)+2-as.numeric(T6[i-1,32])-as.numeric(T6[i,32])
+  a_epi_APC[[i]] <- a1
+}
+T6$a_epi_APC <- a_epi_APC
+T6$a_epi_APC[1] <-(as.numeric(T6[1,5])/mu_epi_APC)*(2*as.numeric(T6[1,30])-1-CIepiAPC)+2-as.numeric(T6[1,32])
+
+a_epi_OP <- rep(NA, 10)
+for (i in 2:10) {
+  a1 <-(as.numeric(T6[i,7])/mu_epi_OP)*(2*as.numeric(T6[i,30])-1-CIepiOP)+2-as.numeric(T6[i-1,33])-as.numeric(T6[i,33])
+  a_epi_OP[[i]] <- a1
+}
+T6$a_epi_OP <- a_epi_OP
+T6$a_epi_OP[1] <-(as.numeric(T6[1,7])/mu_epi_OP)*(2*as.numeric(T6[1,30])-1-CIepiOP)+2-as.numeric(T6[1,33])
+
+#Costs
+a_cost_AE <- rep(NA, 10)
+for (i in 2:10) {
+  a1 <-(as.numeric(T6[i,9])/mu_cost_AE)*(2*as.numeric(T6[i,30])-1-CIcostAE)+2-as.numeric(T6[i-1,34])-as.numeric(T6[i,34])
+  a_cost_AE[[i]] <- a1
+}
+T6$a_cost_AE <- a_cost_AE
+T6$a_cost_AE[1] <-(as.numeric(T6[1,9])/mu_cost_AE)*(2*as.numeric(T6[1,30])-1-CIcostAE)+2-as.numeric(T6[1,34])
+
+a_cost_APC <- rep(NA, 10)
+for (i in 2:10) {
+  a1 <-(as.numeric(T6[i,11])/mu_cost_APC)*(2*as.numeric(T6[i,30])-1-CIcostAPC)+2-as.numeric(T6[i-1,35])-as.numeric(T6[i,35])
+  a_cost_APC[[i]] <- a1
+}
+T6$a_cost_APC <- a_cost_APC
+T6$a_cost_APC[1] <-(as.numeric(T6[1,11])/mu_cost_APC)*(2*as.numeric(T6[1,30])-1-CIcostAPC)+2-as.numeric(T6[1,35])
+
+a_cost_OP <- rep(NA, 10)
+for (i in 2:10) {
+  a1 <-(as.numeric(T6[i,13])/mu_cost_OP)*(2*as.numeric(T6[i,30])-1-CIcostOP)+2-as.numeric(T6[i-1,36])-as.numeric(T6[i,36])
+  a_cost_OP[[i]] <- a1
+}
+T6$a_cost_OP <- a_cost_OP
+T6$a_cost_OP[1] <-(as.numeric(T6[1,13])/mu_cost_OP)*(2*as.numeric(T6[1,30])-1-CIcostOP)+2-as.numeric(T6[1,36])
+
+```
+
+```{r}
+T6$fasq_epi_AE <- T6[,29]*(T6[,37]^2)
+T6$fasq_epi_APC <- T6[,29]*(T6[,38]^2)
+T6$fasq_epi_OP <- T6[,29]*(T6[,39]^2)
+
+T6$fasq_cost_AE <- T6[,29]*(T6[,40]^2)
+T6$fasq_cost_APC <- T6[,29]*(T6[,41]^2)
+T6$fasq_cost_OP <- T6[,29]*(T6[,42]^2)
+```
+
+```{r}
+#Formula adapted for unknown variances: second term=0
+#full book says: 1/n is replaced by 1/T: T=nb of groups? 1/10=0.1: YES
+#Wagstaff 2000 says: keep 1/n
+#var_CI_epi <- ((sum(T6[,19])-(1+CI_epi)^2))/sample_size
+#se_CI_epi <- sqrt(var_CI_epi)
+
+#var_CI_cost <- ((sum(T6[,20])-(1+CI_cost)^2))/sample_size
+#se_CI_cost <- sqrt(var_CI_cost)
+
+#se_CI_epi
+#se_CI_cost
+```
+
+```{r}
+#but I in fact do know the within group variance
+var_epi_AE <- PD30 %>% group_by(imd_decile) %>% summarise(var(na.omit(ann_epi_AE)))
+var_epi_APC <- PD30 %>% group_by(imd_decile) %>% summarise(var(na.omit(ann_epi_APC)))
+var_epi_OP <- PD30 %>% group_by(imd_decile) %>% summarise(var(na.omit(ann_epi_OP)))
+
+var_cost_AE <- PD30 %>% group_by(imd_decile) %>%summarise(var(na.omit(ann_cost_AE)))
+var_cost_APC <- PD30 %>% group_by(imd_decile) %>%summarise(var(na.omit(ann_cost_APC)))
+var_cost_OP <- PD30 %>% group_by(imd_decile) %>%summarise(var(na.omit(ann_cost_OP)))
+```
+
+```{r}
+T6a <- merge(T6, var_epi_AE, by.x="imd_decile")
+T6b <- merge(T6a, var_epi_APC, by.x="imd_decile")
+T6c <- merge(T6b, var_epi_OP, by.x="imd_decile")
+T6d <- merge(T6c, var_cost_AE, by.x="imd_decile")
+T6e <- merge(T6d, var_cost_APC, by.x="imd_decile")
+T6f <- merge(T6e, var_cost_OP, by.x="imd_decile")
+
+T7 <- T6f %>% arrange(rank)
+colnames(T7)[c(49:54)] <- c("var_epi_AE", "var_epi_APC", "var_epi_OP", "var_cost_AE", "var_epi_APC", "var_epi_OP")
+```
+
+```{r}
+#Full formula in that case
+T7$second_term_epi_AE <- as.numeric(T7[,29]) * as.numeric(T7[,49]) * (2*as.numeric(T7[,30])-1-CIepiAE)^2
+T7$second_term_epi_APC <- as.numeric(T7[,29]) * as.numeric(T7[,50]) * (2*as.numeric(T7[,30])-1-CIepiAPC)^2
+T7$second_term_epi_OP <- as.numeric(T7[,29]) * as.numeric(T7[,51]) * (2*as.numeric(T7[,30])-1-CIepiOP)^2
+
+T7$second_term_cost_AE <- as.numeric(T7[,29]) * as.numeric(T7[,52]) *(2*as.numeric(T7[,30])-1-CIcostAE)^2
+T7$second_term_cost_APC <- as.numeric(T7[,29]) * as.numeric(T7[,53]) *(2*as.numeric(T7[,30])-1-CIcostAPC)^2
+T7$second_term_cost_OP <- as.numeric(T7[,29]) * as.numeric(T7[,54]) *(2*as.numeric(T7[,30])-1-CIcostOP)^2
+```
+
+```{r}
+var_CI_epi_AE <- ((sum(as.numeric(T7[,19]))-(1+CIepiAE)^2))/sample_size+sum(as.numeric(T7$second_term_epi_AE))/(sample_size*mu_epi_AE^2)
+var_CI_epi_APC <- ((sum(as.numeric(T7[,19]))-(1+CIepiAPC)^2))/sample_size+sum(as.numeric(T7$second_term_epi_APC))/(sample_size*mu_epi_APC^2)
+var_CI_epi_OP <- ((sum(as.numeric(T7[,19]))-(1+CIepiOP)^2))/sample_size+sum(as.numeric(T7$second_term_epi_OP))/(sample_size*mu_epi_OP^2)
+
+var_CI_cost_AE <-(sum(as.numeric(T7[,20]))-(1+CIcostAE)^2)/sample_size+sum(as.numeric(T7$second_term_cost_AE))/(sample_size*mu_cost_AE^2)
+var_CI_cost_APC <-(sum(as.numeric(T7[,20]))-(1+CIcostAPC)^2)/sample_size+sum(as.numeric(T7$second_term_cost_APC))/(sample_size*mu_cost_APC^2)
+var_CI_cost_OP <-(sum(as.numeric(T7[,20]))-(1+CIcostOP)^2)/sample_size+sum(as.numeric(T7$second_term_cost_OP))/(sample_size*mu_cost_OP^2)
+```
+
+```{r}
+se_CI_epi_AE <- sqrt(var_CI_epi_AE)
+se_CI_epi_APC <- sqrt(var_CI_epi_APC)
+se_CI_epi_OP <- sqrt(var_CI_epi_OP)
+
+se_CI_cost_AE <- sqrt(var_CI_cost_AE)
+se_CI_cost_APC <- sqrt(var_CI_cost_APC)
+se_CI_cost_OP <- sqrt(var_CI_cost_OP)
+
+se_CI_epi_AE
+se_CI_epi_APC
+se_CI_epi_OP
+
+se_CI_cost_AE
+se_CI_cost_APC
+se_CI_cost_OP
+```
+
+```{r}
+#t statistic
+#CI_epi/se_CI_epi2
+#CI_cost/se_CI_cost2
+```
+
+```{r}
+#Confidence intervals for relative concentration index
+confint_epi_AE <- c(CIepiAE-1.96*se_CI_epi_AE, CIepiAE, CIepiAE+1.96*se_CI_epi_AE)
+confint_epi_APC <- c(CIepiAPC-1.96*se_CI_epi_APC, CIepiAPC, CIepiAPC+1.96*se_CI_epi_APC)
+confint_epi_OP <- c(CIepiOP-1.96*se_CI_epi_OP, CIepiOP, CIepiOP+1.96*se_CI_epi_OP)
+
+confint_cost_AE <- c(CIcostAE-1.96*se_CI_cost_AE, CIcostAE, CIcostAE+1.96*se_CI_cost_AE)
+confint_cost_APC <- c(CIcostAPC-1.96*se_CI_cost_APC, CIcostAPC, CIcostAPC+1.96*se_CI_cost_APC)
+confint_cost_OP <- c(CIcostOP-1.96*se_CI_cost_OP, CIcostOP, CIcostOP+1.96*se_CI_cost_OP)
+
+round(confint_epi_AE, 4)
+round(confint_epi_APC, 4)
+round(confint_epi_OP, 4)
+
+round(confint_cost_AE, 4)
+round(confint_cost_APC, 4)
+round(confint_cost_OP, 4)
+```
+
+```{r}
+#Confidence intervals for generalized concentration index
+round(confint_epi_AE*mu_epi_AE, 4)
+round(confint_epi_APC*mu_epi_APC, 4)
+round(confint_epi_OP*mu_epi_OP, 4)
+
+round(confint_cost_AE*mu_cost_AE, 4)
+round(confint_cost_APC*mu_cost_APC, 4)
+round(confint_cost_OP*mu_cost_OP, 4)
+```
+
+```{r}
+range(na.omit(PD30$ann_epi_AE))
+range(na.omit(PD30$ann_epi_APC))
+range(na.omit(PD30$ann_epi_OP))
+range(na.omit(PD30$ann_cost_AE))
+range(na.omit(PD30$ann_cost_APC))
+range(na.omit(PD30$ann_cost_OP))
+
+mean(na.omit(PD30$ann_epi_AE))
+mean(na.omit(PD30$ann_epi_APC))
+mean(na.omit(PD30$ann_epi_OP))
+mean(na.omit(PD30$ann_cost_AE))
+mean(na.omit(PD30$ann_cost_APC))
+mean(na.omit(PD30$ann_cost_OP))
+```
+
