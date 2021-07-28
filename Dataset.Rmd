@@ -1,0 +1,1390 @@
+---
+title: "Dataset mp"
+output: html_document
+---
+#~|[]{}\
+
+```{r include = F}
+#remotes::install_github("brechtdv/rineq")
+install.packages("https://artifactory.gel.zone/artifactory/cran/src/contrib/survminer_0.4.9.tar.gz", repos=NULL, type="source")
+#install.packages("survminer", lib = "/pherscu/R_packages")
+#install.packages("https://artifactory.gel.zone/artifactory/cran/src/contrib/multilevelTools_0.1.1.tar.gz", repos=NULL, type="source")
+
+#library(bbmle)
+library(tidyr, lib.loc = "/usr/local/lib/R/site-library")
+library(magrittr, lib.loc = "/usr/local/lib/R/site-library")
+library(lme4, lib.loc = "/usr/local/lib/R/site-library")
+library(nlme, lib.loc = "/usr/lib/R/library")
+library(knitr, lib.loc = "/usr/local/lib/R/site-library")
+library(dplyr, lib.loc = "/usr/local/lib/R/site-library")
+library(MASS, lib.loc = "/usr/lib/R/library")
+library(nnet, lib.loc = "/usr/lib/R/library")
+library(ggplot2, lib.loc = "/usr/local/lib/R/site-library")
+#library(ggpubr)
+library(readxl, lib.loc = "/usr/local/lib/R/site-library")
+library(openxlsx, lib.loc = "/usr/local/lib/R/site-library")
+library(survival, lib.loc = "/usr/lib/R/library")
+#library(survminer)
+library(nortest, lib.loc = "/usr/local/lib/R/site-library")
+library(reshape2, lib.loc = "/usr/local/lib/R/site-library")
+library(car, lib.loc = "/usr/local/lib/R/site-library")
+library(tibble, lib.loc = "/usr/local/lib/R/site-library")
+library(AER)
+library(broom, lib.loc = "/usr/local/lib/R/site-library")
+library(vcd, lib.loc = "/usr/local/lib/R/site-library")
+#library(corrplot)
+library(coxme, lib.loc = "/usr/local/lib/R/site-library")
+```
+
+```{r include=FALSE}
+#load("/home/pherscu/emergency_care.Rda")
+#load("/home/pherscu/inpatient_care.Rda")
+#load("/home/pherscu/outpatient_care.Rda")
+
+#PD <- patient_data
+AE <- emergency_care
+APC <- inpatient_care
+#ACC <- ACC_costed
+OP <- outpatient_care
+
+gmceq <- read_excel("/home/pherscu/gmc_exit_questionnaire_2021-05-20_11-58-16.xlsx")
+dd <- read_excel("/home/pherscu/death_details_2021-05-20_11-57-43.xlsx")
+part <- read_excel("/home/pherscu/participant_2021-05-20_11-55-50.xlsx")
+gmceq21 <- read_excel("/home/pherscu/gmc_exit_questionnaire_2021-05-26_14-18-26.xlsx")
+rda <- read_excel("/home/pherscu/rare_disease_analysis_2021-06-01_20-11-55.xlsx")
+agg <- read_excel("/home/pherscu/aggregate_gvcf_sample_stats_2021-06-09_13-18-18.xlsx")
+gen <- read_excel("/home/pherscu/genome_file_paths_and_types_2021-07-06_14-51-44.xlsx")
+#rd_invest <- read_excel("/home/pherscu/rare_diseases_invest_genetic_2021-07-06_14-50-40.xlsx")
+#rd_part <- read_excel("/home/pherscu/rare_diseases_participant_disease_2021-07-06_14-53-05.xlsx")
+
+```
+
+
+#################################################################
+######################### 1. Dataset ############################
+#################################################################
+
+```{r}
+#Retain variables for the analysis
+dd1 <- dd[, c(1, 2)]
+gmceq1 <- gmceq[, c(1, 2, 7)]
+part1 <- part[, c(1, 6, 8, 10, 11, 12, 14, 15, 24, 31, 32)]
+rda1 <- rda[, c(1, 8)]
+agg1 <- agg[, c(1, 46, 47, 48, 49, 50)]
+
+AE1 <- AE[,c("row_num", "participant_id", "rare_diseases_family_id", "sex", "participant_phenotypic_sex", "ethnos","participant_ethnic_category", "imd04_decile", "participant_type", "biological_relationship_to_proband", "familysize", "normalised_specific_disease", "postdist", "rururb_ind", "unit_cost", "arrivaldate", "arrivalage")]
+OP1 <- OP[,c("row_num", "participant_id", "rare_diseases_family_id", "sex", "participant_phenotypic_sex", "ethnos","participant_ethnic_category", "imd04_decile", "participant_type", "biological_relationship_to_proband", "familysize", "normalised_specific_disease", "postdist", "rururb_ind", "sum_unit_cost", "apptdate", "apptage")]
+APC1 <- APC[,c("row_num", "participant_id", "rare_diseases_family_id", "sex", "participant_phenotypic_sex", "ethnos","participant_ethnic_category", "imd04_decile", "participant_type", "biological_relationship_to_proband", "familysize", "normalised_specific_disease", "postdist", "rururb_ind", "unit_cost", "sum_unit_cost", "admidate", "admiage", "epistart", "epidur")]
+```
+
+```{r}
+#Disease variable
+rda2 <- as.data.frame(rda1)
+rda3 <- distinct(rda2)
+
+#rda3 has duplicate participant_id bcs more than one disease listed for one participant: from long to wide
+#Those with more than one disease
+rda4 <- rda3 %>% group_by(`Participant Id`) %>% filter(n()!=1)
+rda5 <- rda4 %>% group_by(`Participant Id`) %>%mutate(Rank=row_number())
+#range(rda5$Rank) #1 to 5
+rda6 <- rda5 %>% pivot_wider(names_from=Rank, values_from=`Normalised Specific Disease`, values_fill = NA)
+colnames(rda6) <- c("Participant Id", "disease1", "disease2", "disease3", "disease4", "disease5")
+#nrow(rda6) #552
+
+#Those with 1 disease
+rda7 <- rda3 %>% group_by(`Participant Id`) %>% filter(n()==1)
+colnames(rda7) <- c("Participant Id", "disease1")
+#nrow(rda4)+nrow(rda7)
+#nrow(rda3)              #check ok
+
+rda8 <- rbind(rda6, rda7)
+#nrow(rda8)              #71910: one missing; has 0 diseases?
+```
+
+
+```{r}
+#Create a new patient dataset: merge per patient id
+part2 <- as.data.frame(part1)
+gmceq2 <-as.data.frame(gmceq1)
+dd2 <- as.data.frame(dd1)
+
+PD1 <- merge(part2, gmceq2, by.x="Participant Id", all.x = T)
+PD2 <- merge (PD1,dd2, by.x="Participant Id", all.x = T)
+PD3 <- merge(PD2, rda8, by.x="Participant Id", all.x = T)
+
+PD4 <- PD3 %>% filter(Programme=="Rare Diseases")
+```
+
+```{r}
+#take duplicates out: 71911 rows = exact nb of rare disease patients in V9
+PD5 <- distinct(PD4) 
+
+#Add a 'dead' column
+PD5$dead <- ifelse(is.na(PD5$`Death Date`)==T, "no", "yes")
+```
+
+
+```{r echo = F}
+#Calculate nb of episodes and costs per patient in clinical datasets
+AE2 <- AE1 %>% group_by(participant_id) %>% summarise(n(), sum(unit_cost,na.rm=T))
+colnames(AE2) <- c("participant_id", "total_ae_episodes", "total_ae_cost")
+APC2 <- APC1 %>% group_by(participant_id) %>% summarise(n(), sum(sum_unit_cost,na.rm=T))
+colnames(APC2) <- c("participant_id","total_apc_episodes", "total_apc_cost")
+OP2 <- OP1 %>% group_by(participant_id) %>% summarise(n(), sum(sum_unit_cost,na.rm=T))
+colnames(OP2) <- c("participant_id","total_op_episodes", "total_op_cost")
+```
+
+
+```{r}
+#Merging clinical datasets
+colnames(PD5)[1] <- c("participant_id")
+CD <- merge(PD5, OP2, by.x="participant_id", all.x= T)
+CD1 <- merge(CD, AE2, by.x="participant_id", all.x= T)
+PD6 <- merge(CD1, APC2, by.x="participant_id", all.x= T)
+```
+
+```{r echo=F}
+#Add 2 new columns: total nb of costs, total nb of episodes
+PD6$total_cost <- rowSums(PD6[,c("total_ae_cost", "total_op_cost", "total_apc_cost")], na.rm=T)
+PD6$total_episodes <- rowSums(PD6[,c("total_ae_episodes", "total_op_episodes", "total_apc_episodes")], na.rm=T)
+```
+
+```{r}
+#Sex variable
+#dif <-which(PD6$`Participant Phenotypic Sex`!= PD6$`Participant Stated Gender`)
+#length(dif) #47 participants are stating a different gender than their phenotypic sex
+
+colnames(PD6)[c(6, 7)] <- c("Sex", "Gender")
+
+#Replace the NA sex by the gender value
+PD6$Sex <- replace(PD6$Sex, which(PD6$participant_id==000000000), "Female")
+#PD6[PD6$participant_id==000000000,]
+```
+
+```{r}
+#Ethnicity variable
+PD7 <- PD6
+Ethnicity <- rep(NA, nrow(PD7))
+
+Ethnicity[PD7$`Participant Ethnic Category`=="Asian or Asian British: Bangladeshi"] <- "South Asian" 
+Ethnicity[PD7$`Participant Ethnic Category`=="Asian or Asian British: Indian"] <- "South Asian"
+Ethnicity[PD7$`Participant Ethnic Category`=="Asian or Asian British: Pakistani"] <- "South Asian"
+Ethnicity[PD7$`Participant Ethnic Category`=="Asian or Asian British: Any other Asian background"] <- "Other Asian"
+Ethnicity[PD7$`Participant Ethnic Category`=="Mixed: White and Asian"] <- "Other Asian"
+Ethnicity[PD7$`Participant Ethnic Category`=="Other Ethnic Groups: Chinese"] <- "Chinese"
+
+Ethnicity[PD7$`Participant Ethnic Category`=="White: Irish"] <- "White"
+Ethnicity[PD7$`Participant Ethnic Category`=="White: British"] <- "White"
+Ethnicity[PD7$`Participant Ethnic Category`=="White: Any other white background"] <- "White"
+
+Ethnicity[PD7$`Participant Ethnic Category`=="Mixed: White and Black Caribbean"] <- "Black"
+Ethnicity[PD7$`Participant Ethnic Category`=="Mixed: White and Black African"] <- "Black"
+Ethnicity[PD7$`Participant Ethnic Category`=="Black or Black British: Caribbean"] <- "Black"
+Ethnicity[PD7$`Participant Ethnic Category`=="Black or Black British: Any other Black background"] <- "Black"
+Ethnicity[PD7$`Participant Ethnic Category`=="Black or Black British: African"] <- "Black"
+
+Ethnicity[PD7$`Participant Ethnic Category`=="Not Stated"] <- "Unknown"
+Ethnicity[PD7$`Participant Ethnic Category`=="Other Ethnic Groups: Any other ethnic group"] <- "Other"
+Ethnicity[PD7$`Participant Ethnic Category`=="Mixed: Any other mixed background"] <- "Other"
+
+PD7$Ethnicity <- Ethnicity
+
+PD7$ethnicityD <- ifelse(PD7$Ethnicity=="White", "White", ifelse(PD7$Ethnicity=="Unknown", NA, "BAME"))
+
+#table(PD7$Ethnicity, useNA = "always")
+#table(PD7$ethnicityD, useNA = "always")
+#table(PD7$`Participant Ethnic Category`)
+```
+
+```{r}
+#Recode birth_year by centering to its minimum
+#min(PD2$`Year Of Birth`)
+#range(PD2$`Year Of Birth`)
+PD7$birth_year2 <- PD7$`Year Of Birth`-min(PD7$`Year Of Birth`)
+#0 means people born in 1908
+```
+
+
+```{r include=F}
+#create a mode function
+getmode <- function(v){
+  uniqv <- na.omit(unique(v))
+  uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+```
+
+
+```{r echo=F}
+#Variables from episode level to participant level
+AE3 <- AE1[, c("participant_id", "imd04_decile", "rururb_ind", "postdist")]
+colnames(AE3) <- c("participant_id", "imd_decile_ae", "rururb_ae", "postdist_ae")
+APC3 <- APC1[, c("participant_id", "imd04_decile", "rururb_ind", "postdist")]
+colnames(APC3) <- c("participant_id", "imd_decile_apc", "rururb_apc", "postdist_apc")
+OP3 <- OP1[, c("participant_id", "imd04_decile", "rururb_ind", "postdist")]
+colnames(OP3) <- c("participant_id", "imd_decile_op", "rururb_op", "postdist_op")
+```
+
+```{r}
+#Get the mode of these variables
+AE4 <- AE3 %>% group_by(participant_id) %>% summarise(getmode(imd_decile_ae), getmode(rururb_ae), getmode(postdist_ae))
+APC4 <- APC3 %>% group_by(participant_id) %>% summarise(getmode(imd_decile_apc), getmode(rururb_apc), getmode(postdist_apc))
+OP4 <- OP3 %>% group_by(participant_id) %>% summarise(getmode(imd_decile_op), getmode(rururb_op), getmode(postdist_op))
+
+colnames(AE4) <- c("participant_id", "imd_decile_ae", "rururb_ae", "postdist_ae")
+colnames(APC4) <- c("participant_id", "imd_decile_apc", "rururb_apc", "postdist_apc")
+colnames(OP4) <- c("participant_id", "imd_decile_op", "rururb_op", "postdist_op")
+
+IMD <- as.data.frame(PD7[,1])
+colnames(IMD) <- "participant_id"
+IMD1 <- merge(IMD, AE4, by.x="participant_id", all.x=T)
+IMD1b <- merge(IMD1, APC4, by.x="participant_id", all.x=T)
+IMD2 <- merge(IMD1b, OP4, by.x="participant_id", all.x=T)
+```
+
+```{r echo=F}
+#from wide format to long format to apply getmode function
+IMD3 <- IMD2 [, c("participant_id", "imd_decile_op", "imd_decile_apc", "imd_decile_ae")]
+IMD3 <- reshape(data=IMD3, varying=c("imd_decile_op", "imd_decile_apc", 
+                "imd_decile_ae"),  v.names="imd_decile",idvar="participant_id", direction="long")
+
+IMD4 <- IMD2 [, c("participant_id", "rururb_op", "rururb_apc", 
+                "rururb_ae")]
+IMD4 <- reshape(data=IMD4, varying=c("rururb_op", "rururb_apc", 
+                "rururb_ae"), v.names="rururb",idvar="participant_id", direction="long")
+
+IMD5 <- IMD2 [, c("participant_id", "postdist_op", "postdist_apc", 
+                "postdist_ae")]
+IMD5 <- reshape(data=IMD5, varying=c("postdist_op", "postdist_apc", 
+                "postdist_ae"), v.names="postdist",idvar="participant_id", direction="long")
+
+IMD3 <- IMD3[order(IMD3$participant_id),]
+IMD4 <- IMD4[order(IMD4$participant_id),]
+IMD5 <- IMD5[order(IMD5$participant_id),]
+IMD6 <- IMD6[order(IMD6$participant_id),]
+
+IMD3b <- IMD3 %>% group_by(participant_id) %>% summarise(getmode(imd_decile))
+colnames(IMD3b) <- c("participant_id", "imd_decile")
+IMD4b <- IMD4 %>% group_by(participant_id) %>% summarise(getmode(rururb))
+colnames(IMD4b) <- c("participant_id", "rururb")
+IMD5b <- IMD5 %>% group_by(participant_id) %>% summarise(getmode(postdist))
+colnames(IMD5b) <- c("participant_id", "postdist")
+```
+
+```{r}
+#merge into one patient dataset
+PD8 <- merge(PD7, IMD4b, by.x = "participant_id", all.x=T)
+PD9 <- merge(PD8, IMD5b, by.x = "participant_id", all.x=T)
+PD10 <- merge(PD9, IMD3b, by.x = "participant_id", all.x=T)
+```
+
+
+```{r include=F}
+#NA diagnostics of the mode function
+length(which(is.na(PD10$imd_decile)))       #8237 NA -> 4867 with na.omit
+length(which(is.na(PD10$rururb)))           #4379 NA
+length(which(is.na(PD10$postdist)))         #4362 NA
+                                           
+length(which(is.na(AE3$imd_decile_ae)))            #2992
+#NA left in AE4 are only those that have only one value, which is NA, in AE3
+
+length(which(is.na(IMD2$imd_decile_op)))           #1893
+length(which(is.na(IMD2$imd_decile_ae)))           #10396
+length(which(is.na(IMD2$imd_decile_apc)))          #7221    =19510
+#missing rows between the 3 merged datasets account for the increase in NA for all variables
+
+length(which(is.na(IMD3$imd_decile)))             #19510  #no problem here
+length(which(is.na(IMD3b$imd_decile)))            #514    
+#applied getmode function again, hence less NA
+length(which(is.na(PD10$imd_decile)))              #4867
+
+#The difference of rows between IMD3b and PD5 accounts for the increase in missing values for imd_decile in PD10
+nrow(PD10)-nrow(IMD3b)+length(which(is.na(IMD3b$imd_decile)))     #4562
+```
+
+```{r}
+#Recoding imd_decile
+PD11 <- PD10
+imd2 <- rep(NA, nrow(PD11))
+imd2[PD11$imd_decile=="Most deprived 10%"]<-"Most deprived 30%"
+imd2[PD11$imd_decile=="More deprived 10-20%"]<-"Most deprived 30%"
+imd2[PD11$imd_decile=="More deprived 20-30%"]<-"Most deprived 30%"
+
+imd2[PD11$imd_decile=="More deprived 30-40%"]<-"Middle 40%"
+imd2[PD11$imd_decile=="More deprived 40-50%"]<-"Middle 40%"
+imd2[PD11$imd_decile=="Less deprived 30-40%"]<-"Middle 40%"
+imd2[PD11$imd_decile=="Less deprived 40-50%"]<-"Middle 40%"
+
+imd2[PD11$imd_decile=="Least deprived 10%"]<- "Least deprived 30%"
+imd2[PD11$imd_decile=="Less deprived 10-20%"]<- "Least deprived 30%"
+imd2[PD11$imd_decile=="Less deprived 20-30%"]<- "Least deprived 30%"
+
+PD11$imd2 <- as.factor(imd2)
+```
+
+```{r}
+#Recode rururb
+PD12 <- PD11
+PD12$rururb2 <- ifelse(PD12$rururb==1, "urban", ifelse(PD12$rururb==5, "urban", "rural"))
+#table(PD12$rururb, useNA = "always")
+#table(PD12$rururb2, useNA = "always")
+```
+
+```{r}
+#From county to region of residence
+#table(PD12$county, useNA = "always")
+#length(which(is.na(PD12$postdist)))
+#much less missing values for postdist; let's not use county
+
+#Recoding the outward code to obtain only the letter part, which can be assigned to a region
+PD13 <- PD12
+PD13$postdist2 <- substr(PD13$postdist, start=1, stop=2)
+PD13$postdist2 <- replace(PD13$postdist2, which(PD13$postdist2=="G7"), "G")
+PD13$postdist2 <- replace(PD13$postdist2, which(PD13$postdist2 %in% c("B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9")), "B")
+PD13$postdist2 <- replace(PD13$postdist2, which(PD13$postdist2 %in% c("E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "E9")), "E")
+PD13$postdist2 <- replace(PD13$postdist2, which(PD13$postdist2 %in% c("L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9")), "L")
+PD13$postdist2 <- replace(PD13$postdist2, which(PD13$postdist2 %in% c("M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9")), "M")
+PD13$postdist2 <- replace(PD13$postdist2, which(PD13$postdist2 %in% c("N1", "N2", "N3", "N4", "N5", "N6", "N7", "N8", "N9")), "N")
+PD13$postdist2 <- replace(PD13$postdist2, which(PD13$postdist2 %in% c("S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9")), "S")
+PD13$postdist2 <- replace(PD13$postdist2, which(PD13$postdist2 %in% c("W1", "W2", "W3", "W4", "W5", "W6", "W7", "W8", "W9")), "W")
+
+```
+
+```{r}
+#Assign postcode to a region
+region <- rep(NA, nrow(PD13))
+region[PD13$postdist2 %in% c("CF", "LD", "LL", "NP", "SA", "SY")]<-"Wales"
+region[PD13$postdist2=="BT"]<-"Northern Ireland"
+region[PD13$postdist2 %in% c("AB", "DD", "DG", "EH", "FK", "G", "HS", "IV", "KA", "KW", "KY", "ML", "PA", "PH", "TD", "ZE")]<-"Scotland"
+region[PD13$postdist2 %in% c("AL", "CB", "CM", "CO", "HP", "IP", "LU", "NR", "SG", "SS", "PE")]<-"East of England"
+region[PD13$postdist2 %in% c("B", "CV", "DY", "HR", "NN", "ST", "TF", "WR", "WS", "WV")]<-"West Midlands"
+region[PD13$postdist2 %in% c("BA", "BH", "BS", "DT", "EX", "GL", "PL", "SN", "SP", "TA", "TQ", "TR")]<-"South West"
+region[PD13$postdist2 %in% c("BB", "BL", "CA", "CH", "CW", "FY", "HX", "L", "LA", "M", "OL", "PR", "SK", "WA", "WN")]<-"North West"
+region[PD13$postdist2 %in% c("BN", "CT", "GU", "ME", "MK", "OX", "PO", "RG", "RH", "SL", "SO", "TN")]<-"South East"
+region[PD13$postdist2 %in% c("BR", "CR", "DA", "E", "EC", "EN", "HA", "IG", "KT", "N", "NW", "RM", "SE", "SM", "SW", "TW", "UB", "W", "WC", "WD")]<-"Greater London"
+region[PD13$postdist2 %in% c("DE", "LE", "LN", "NG")]<-"East Midlands"
+region[PD13$postdist2 %in% c("DH", "DL", "NE", "SR", "TS")]<-"North East"
+region[PD13$postdist2 %in% c("YO", "WF", "S", "LS", "HU", "HG", "HD", "BD", "DN")]<-"Yorkshire & Humber"
+region[PD13$postdist2 %in% c("BF", "BX", "GIR", "QC", "XX")]<-"Non geographic"
+region[PD13$postdist2=="ZZ"]<-NA
+PD13$region <- region
+
+#table(PD13$region, useNA = "always")
+```
+
+```{r}
+#Renaming columns
+PD14 <- PD13
+PD14 <- subset(PD14, select=-c(2, 12))
+colnames(PD14)[c(2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 27)] <- c("region_handling", "birth_year", "ethnic_category", "sex", "gender", "registration_date", "consent_date", "family_id", "participant_type", "family_case_solved", "death_date", "ethnicity")
+
+PD14$sex <- replace(PD14$sex, which(PD14$sex=="Indeterminate"), NA)
+```
+
+```{r}
+#Try to recode into dummy variables:
+PD15 <- PD14 
+
+PD15$East_of_England <- ifelse(PD15$region_handling=="East of England", 1, 0)
+#PD15$Genomics_Network_Alliance <- ifelse(PD15$region_handling=="Genomics Network Alliance", 1, 0) #reference level
+PD15$Greater_Manchester <- ifelse(PD15$region_handling=="Greater Manchester", 1, 0)
+PD15$North_East_and_Cumbria <- ifelse(PD15$region_handling=="North East and Cumbria", 1, 0)
+PD15$North_Thames <- ifelse(PD15$region_handling=="North Thames", 1, 0)
+PD15$North_West <- ifelse(PD15$region_handling=="North West", 1, 0)
+PD15$Northern_Ireland <- ifelse(PD15$region_handling=="Northern Ireland", 1, 0)
+PD15$Oxford <- ifelse(PD15$region_handling=="Oxford", 1, 0)
+PD15$Scotland <- ifelse(PD15$region_handling=="Scotland", 1, 0)
+PD15$South_Coast <- ifelse(PD15$region_handling=="South Coast", 1, 0)
+PD15$South_West_Peninsula <- ifelse(PD15$region_handling=="South West Peninsula", 1, 0)
+PD15$Wales <- ifelse(PD15$region_handling=="Wales", 1, 0)
+PD15$West_London <- ifelse(PD15$region_handling=="West London", 1, 0)
+PD15$West_Midlands <- ifelse(PD15$region_handling=="West Midlands", 1, 0)
+PD15$West_of_England <- ifelse(PD15$region_handling=="West of England", 1, 0)
+PD15$Yorkshire_and_Humber <- ifelse(PD15$region_handling=="Yorkshire and Humber", 1, 0)
+table(PD14$region_handling)
+```
+
+```{r}
+#ethnos variable
+#Check total of prob are 1 for each rows
+agg1$total <- rowSums(agg1[,c(2, 3, 4, 5, 6)])
+#length(which(agg1$total>1))   #0
+#length(which(agg1$total==1))  #58684
+#length(which(agg1$total<1))   #101
+#min(agg1$total)               #1
+
+agg1 <- agg1[,-7]
+colnames(agg1)<- c("participant_id", "african", "american", "asian", "european", "southasian")
+
+agg2 <- distinct(agg1)
+#nrow(agg1)
+#nrow(agg2) #there were 2 exact duplicates
+
+agg3 <- agg2 %>% group_by(participant_id) %>% filter(n()!=1)
+#agg2[agg2$participant_id==000000000,] #drop row 11
+#agg2[agg2$participant_id==000000000,] #drop row 36857
+#duplicate id, but ancestry is the same between the 2 rows
+
+agg4 <- agg2[-c(11, 36857),]
+#nrow(agg4)  #ok
+```
+
+```{r}
+#
+ethnos <- rep(NA, nrow(agg4))
+ethnos[agg4$african>=0.5] <- "african"
+ethnos[agg4$american>=0.5] <- "american"
+ethnos[agg4$asian>=0.5] <- "asian"
+ethnos[agg4$european>=0.5] <- "european"
+ethnos[agg4$southasian>=0.5] <- "southasian"
+ethnos[agg4$southasian<0.5 & agg4$european<0.5 & agg4$asian<0.5 & agg4$african<0.5 & agg4$american<0.5] <- "Mixed"
+agg4$ethnos <- ethnos
+
+#table(agg4$ethnos)
+#round(prop.table(table(agg4$ethnos))*100, 2)
+#length(which(is.na(agg4$ethnos)))
+```
+
+```{r}
+#ethnosD
+agg5 <- agg4[,-c(2, 3, 4, 5, 6)]
+agg5$ethnosD <- ifelse(agg5$ethnos=="european", "White", "BAME")
+#table(agg5$ethnosD)
+#round(prop.table(table(agg5$ethnosD))*100, 2) #ok
+```
+
+```{r}
+PD16 <- merge(PD15, agg5, by.x = "participant_id", all.x=T)
+#table(PD16$ethnosD, useNA = "always") #ok
+#colnames(PD16)
+```
+
+
+```{r}
+#Only probands
+#table(PD6$participant_type, useNA = "always")
+PD17 <- PD16 %>% filter(participant_type=="Proband")
+PD17 <- subset(PD17, select=-10)
+
+```
+
+```{r include=F}
+#NA diagnostics for costs and episodes
+length(which(PD16$total_episodes==0))   #Same numbers for both: 5746
+length(which(PD16$total_cost==0))
+length(which(is.na(PD16$total_episodes))) 
+length(which(is.na(PD16$total_cost)))
+#When there are 0 costs and 0 episodes, all other intermediate costs and episodes = 0; so no NA values
+
+w1 <- PD16 %>% filter(PD16$total_cost==0)
+w2 <- w1 %>% filter(w1$total_episodes==0)
+length(which(w2$total_cost==w2$total_episodes))   
+#all same rows have 0 costs and 0 episodes
+
+#In the original datasets: 0 costs and episodes -> all 0
+length(which(OP$total_op_cost==0))   
+#In the original datasets: NA  -> 0 everywhere for costs and episodes
+
+#after merging all datasets into PD10: 0 values? still the same!
+#NA values? LOTS -> but is due to merge function: some patients are not included in any datasets, so are replaced by NA values
+length(which(is.na(PD10$total_ae_cost)))     
+length(which(is.na(PD10$total_cc_cost)))    
+length(which(is.na(PD10$total_apc_cost)))   
+length(which(is.na(PD10$total_op_cost)))    
+
+length(which(is.na(PD10$total_ae_episodes)))    
+length(which(is.na(PD10$total_cc_episodes)))    
+length(which(is.na(PD10$total_apc_episodes)))   
+length(which(is.na(PD10$total_op_episodes))) 
+#There doesn't seem to be any coding mistake: only that patients with 0 episodes have in consequence 0 costs
+
+#Among those patients with 0 costs/episodes, mostly non probands
+table(w2$`Participant Type`=="Proband")
+round(prop.table(table(w2$`Participant Type`=="Proband"))*100, 2)
+```
+
+
+#################################################################
+############ Case family solved selection algorithm #############
+#################################################################
+
+
+
+```{r}
+#case family solved
+gmceq3 <- gmceq[, c(1, 2, 6, 7, 10, 11, 14, 21, 22)]     #V9
+gmceq22 <- gmceq21[, c(1, 2, 6, 7, 10, 11, 14, 21, 22)]  #V12
+
+#V12
+
+#Keep only participants that are in V9
+gmceq23 <- gmceq22[which(gmceq22$`Participant Id` %in% PD6$participant_id == T),]
+```
+
+```{r}
+#nrow(gmceq23)                                     #35312
+#length(unique(gmceq23$`Participant Id`))          #30385
+#table(gmceq23$`Case Solved Family`)
+
+#duplicates?
+gmceq24 <- distinct(gmceq23)
+#nrow(gmceq24)                                   #32885
+#length(which(duplicated(gmceq24)==T))           #no more duplicates
+#length(unique(gmceq24$`Participant Id`))        #30385
+#table(gmceq24$`Case Solved Family`, useNA = "always")
+```
+
+```{r}
+#Keep only rows with duplicate participant_id
+gmceq25 <- gmceq24 %>% group_by(`Participant Id`) %>% filter(n()!=1)
+gmceq25 <- gmceq25 %>% group_by(`Participant Id`) %>%mutate(Rank=row_number())
+colnames(gmceq25) <- c("participant_id", "family_id", "event_date", "csf", "actionability", "clinical_utility", "acmg", "confirmation_decision", "confirmation_outcome", "rank")
+```
+
+```{r}
+#Drop those with case solved = yes or no:no classification problem
+#768 with partially/unknown
+gmceq26 <- gmceq25 %>% filter(csf!="yes" && csf!="no")
+
+#Keep those with case solved = yes or no: 3615
+gmceq27 <-  gmceq25 %>% filter(csf=="yes"|csf=="no")
+
+#nrow(gmceq26)+nrow(gmceq27)
+#nrow(gmceq25)
+#Check: ok
+
+#No participant in common between the 2 datasets
+#intersect(gmceq26$participant_id, gmceq27$participant_id)
+```
+
+
+```{r}
+#For those with case solved yes or no, check that for same participant_id, we have the same value of case family solved: from long to wide format
+
+#Count occurrences of yes or no in ACMG for one participant_id
+gmceq28 <-dcast(gmceq27, participant_id ~ csf)
+#Duplicates with same values in yes or no, so one of the columns=0
+gmceq29 <- gmceq28 %>% filter(yes==0|no==0)
+#nrow(gmceq28)
+#nrow(gmceq29)
+#One row difference: one row has yes and no as values
+
+#gmceq28[which(gmceq28$yes==1),]
+#gmceq27[which(gmceq27$participant_id==000000000),]
+#One row has Yes and No = different values but the event date of yes is more recent: keep yes, drop no: row 3058
+gmceq27 <- gmceq27[-3058,]         #3614 rows
+```
+
+```{r}
+#For other duplicated participant_id, just keep one row
+gmceq30 <- gmceq27[!duplicated(gmceq27$participant_id),]
+#=Finished with duplicates with yes/no
+```
+
+```{r}
+#For duplicate rows with unknown or partially case family solved, recode based on ACMG classification
+#table(gmceq26$acmg)
+
+csf1 <- rep(NA, nrow(gmceq26))
+csf1[gmceq26$acmg=="pathogenic_variant"|gmceq26$acmg=="likely_pathogenic_variant"] <- "yes"
+csf1[gmceq26$acmg=="benign_variant"|gmceq26$acmg=="likely_benign_variant"|gmceq26$acmg=="not_assessed"|gmceq26$acmg=="NA"|gmceq26$acmg=="variant_of_unknown_clinical_significance"] <- "no"
+csf1[is.na(gmceq26$acmg==T)] <- "no"
+gmceq26$csf1 <- csf1
+
+#Check
+#length(which(gmceq26$csf1=="yes"))+length(which(gmceq26$csf1=="no"))
+#nrow(gmceq26)
+#ok
+```
+
+```{r}
+#Also need to check they have the same values
+gmceq31 <-dcast(gmceq26, participant_id ~ csf1)
+gmceq32 <- gmceq31 %>% filter(yes==0|no==0)
+gmceq33 <- gmceq31[-which(gmceq31$yes==0|gmceq31$no==0),] 
+#nrow(gmceq31) #349
+#nrow(gmceq32) #only 139 out of 349 have a 0 in one column: huge difference!
+
+#Check 
+#nrow(gmceq32)+nrow(gmceq33)
+#ok
+```
+
+```{r}
+#For those with yes or no=0, then we can also just drop one row
+gmceq34 <- subset(gmceq26, gmceq26$participant_id %in% gmceq32$participant_id)
+gmceq35<- gmceq34[!duplicated(gmceq34$participant_id),]
+```
+
+```{r}
+#For those with different values for yes/no
+gmceq36 <- subset(gmceq26, gmceq26$participant_id %in% gmceq33$participant_id)
+#If there is at least one yes: let's treat them as solved
+gmceq37 <- gmceq36
+gmceq37$csf1 <- "yes"
+#Need to drop one row
+gmceq38<- gmceq37[!duplicated(gmceq37$participant_id),]
+```
+
+```{r}
+#Dataset: unique participant_id = no duplicates
+gmceq39 <- gmceq24 %>% group_by(`Participant Id`) %>% filter(n()==1)
+#nrow(gmceq38)+nrow(gmceq25)
+#nrow(gmceq24)
+#Check: ok
+colnames(gmceq39) <- c("participant_id", "family_id", "event_date", "csf", "actionability", "clinical_utility", "acmg", "confirmation_decision", "confirmation_outcome")
+```
+
+```{r}
+#Recode according to ACMG classification for non duplicates
+csf2 <- rep(NA, nrow(gmceq26))
+csf2[gmceq39$acmg=="pathogenic_variant"|gmceq39$acmg=="likely_pathogenic_variant"] <- "yes"
+csf2[gmceq39$acmg=="benign_variant"|gmceq39$acmg=="likely_benign_variant"|gmceq39$acmg=="not_assessed"|gmceq39$acmg=="NA"|gmceq39$acmg=="variant_of_unknown_clinical_significance"] <- "no"
+csf2[is.na(gmceq39$acmg==T)] <- "no"
+gmceq39$csf1 <- csf2
+```
+
+
+```{r}
+#Drop the rank columns
+gmceq30 <- gmceq30[,-10]
+gmceq35 <- gmceq35[,-10]
+gmceq38 <- gmceq38[,-10]
+
+#Add csf1 column
+gmceq30$csf1 <- gmceq30$csf
+```
+
+```{r}
+#Bind all datasets
+G1 <- rbind(gmceq39, gmceq30, gmceq35, gmceq38)
+G1 <- G1[order(G1$participant_id),]
+
+#nrow(gmceq39)+nrow(gmceq30)+nrow(gmceq35)+nrow(gmceq38) #30385
+#nrow(G1)                                                #30385
+#length(unique(gmceq23$`Participant Id`))                #30385
+#YES
+#table(G2$csf1)
+```
+
+
+```{r}
+#merge with final datasets
+PD18 <- PD16
+G2 <- G1[,-c(2, 3, 5, 6, 7, 8, 9)]
+PD19 <- merge(PD18, G2, by.x="participant_id", all.x=T)
+
+#nrow(PD17)
+#no additional rows
+colnames(PD19)[54] <- "csfV12"
+colnames(PD19)[55] <- "csf1V12"
+```
+
+```{r}
+#Are the people in the gmceq only probands?
+pt1 <- PD19 %>% filter(is.na(csf1V12)==F) %>% count(participant_type)
+#30371 probands, 14 relatives
+```
+
+```{r}
+#Final results
+#table(PD19$csfV12, useNA = "always")
+#table(PD19$csf1V12, useNA = "always")
+```
+
+```{r}
+#Keeping only probands
+PD20 <- PD19 %>% filter(participant_type=="Proband")
+#View(PD19)
+#table(PD20$csfV12, useNA = "always")
+#table(PD20$csf1V12, useNA = "always")
+#nrow(PD20) #like PD7:ok
+#24521+5850=30371 : correct nb: number of unique participant_id from gmceq minus the 14 relatives
+#5850*100/33536 #Diagnostic yield: 17%
+```
+
+```{r}
+#length(unique(PD20$family_id))
+#length(unique(PD20$participant_id))
+#33536: only one proband per family
+#Since we are keeping only probands, below steps are not useful anymore, but keeping them anyway
+```
+
+```{r}
+#Ppl treated outside of England might not have HES data: Wales, Scotland, Northern Ireland
+table(PD20$region_handling)
+reg1 <- PD20 %>% filter(region_handling=="Northern Ireland"|region_handling=="Wales"|region_handling=="Scotland")
+nrow(reg1)                            #978
+length(which(reg1$total_cost==0))     #922
+length(which(reg1$total_episodes==0)) #922
+#Doesn't seem to be too bad; but region is based on residence, not where they are handled
+```
+
+
+```{r}
+#Checking that in the larger sample, there is only one proband per family_id: yes indeed
+#prob1 <- PD19 %>% group_by(family_id) %>% count(participant_type) %>% filter(participant_type=="Proband" && n>1)
+#View(prob1)
+```
+
+```{r}
+#Check that for one family_id, csf is the same
+#pt2 <- PD19 %>% group_by(family_id) %>% filter(n()>1)
+#pt8 <- PD19 %>% group_by(family_id) %>% filter(n()==1)
+#nrow(PD19)
+#nrow(pt2)
+#nrow(pt8)  #ok
+
+#pt3 <-dcast(pt2, family_id ~ csf1V12)
+#nrow(pt3)                                 #21074 unique family id
+#pt4 <- pt3 %>% filter(yes==0|no==0)
+#pt5 <- pt3[-which(pt3$yes==0|pt3$no==0),]     
+#nrow(pt4)                                 #21073 rows with same values
+#nrow(pt5)                                 #1 family with different values
+
+#Which patients?
+#pt6 <- pt2[which(pt2$family_id==000000000),]
+#View(pt6)
+```
+
+```{r}
+#Recode all NAs belonging to the same family as yes or no
+#One case (above) where yes and no for one same family: recode as yes
+#csf3 <- rep(NA, nrow(pt3))
+#csf3[pt3$yes==0] <- "no"
+#csf3[pt3$no==0] <- "yes"
+#pt3$csf1 <- csf3
+#pt3[which(is.na(pt3$csf1)==T),] <- "yes"
+#table(pt3$csf1, useNA = "always")
+#no more NAs
+```
+
+```{r}
+#Merge back with pt2
+#pt3 <- pt3[,-c(2, 3, 4)]
+#pt7 <- merge(pt2, pt3, by.x="family_id", all.x=T)
+#nrow(pt2)
+#nrow(pt7) #check ok
+
+#pt9 <- pt7[,-33]
+#colnames(pt9)[33] <- "csf1V12"
+#PD19 <- rbind(pt8, pt9)
+#nrow(PD17)
+#nrow(PD19) #check ok
+```
+
+```{r}
+#table(PD19$csf1V12, useNA = "always")
+#table(PD19$csfV12, useNA = "always")
+```
+
+```{r}
+PD20$birth_year2 <- PD20$birth_year-min(PD20$birth_year)
+```
+
+
+```{r}
+#People treated outside of England do not have HES data: check how many of the 0 costs are 
+reg2 <- PD20 %>% filter(total_cost==0 & total_episodes==0) %>% count(region_handling) 
+#reg2
+#sum(reg2[c(7, 9, 12), "n"])  #922
+#sum(reg2[c(7, 9, 12), "n"])/length(which(PD20$total_cost==0))*100
+#Out of 1291 0 costs, 922 are linked to this =71%    =take them out
+#Note: not all patients treated in those regions have 0 costs or episodes, so we keep them
+
+reg3 <- PD20 %>% count(region_handling)
+#reg3
+#sum(reg3[c(7, 9, 12), "n"]) #978
+#so 978-922=56 of these patients do have costs and episodes
+#922/978*100  #94,3% of those patients have 0 costs and episodes
+```
+
+```{r}
+#Getting rid of structural 0 due to region of treatment
+PD21 <- PD20[!(PD20$total_cost==0 & PD20$total_episodes==0),]
+```
+
+```{r}
+#0 costs now for n=32614
+length(which(PD21$total_cost==0))     #low nb of 0 costs: 369
+length(which(PD21$total_cost==0))/    #0 costs 1.13%
+  length(PD21$total_cost)*100
+```
+
+
+```{r}
+#Actually low proportion of 0 costs: could maybe run only a one part model
+#=structural 0 costs -> Hurdle Gamma model = two-step model
+
+#Create a non_zero variable
+PD21$non_zero <- ifelse(PD21$total_cost>0, 1, 0)
+
+#Add the 'availability of family data' variable
+C1 <- PD19 %>% count(family_id)
+PD22 <- merge (PD21, C1, by.x="family_id", all.x=T)
+PD22$family3 <- as.numeric(PD22$n>=3) #0: 1 or 2 family members; 1: 3 or more
+colnames(PD22)[c(57,58)] <- c("family_members", "family_members3")
+```
+
+
+
+#################################################################
+################### Dataset for costs/episodes ##################
+#################################################################
+
+
+```{r}
+#Calculate year of death 
+PD22$death_year <- format(as.Date(PD22$death_date, "%Y/%m/%d"), "%Y")
+```
+
+```{r}
+#see below in diagnostics: recoding values for one proband declared dead but registered into the program: considering him alive
+PD22$death_date <- replace(PD22$death_date, which(PD22$participant_id==000000000), NA)
+PD22$dead <- replace(PD22$dead, which(PD22$participant_id==000000000), "no")
+PD22$death_year <- replace(PD22$death_year, which(PD22$participant_id==000000000), NA)
+```
+
+
+```{r}
+#Preparation of dataset for time to WGS
+#min(AE1$arrivaldate)        #2007 to 2019.07.31
+#max(AE1$arrivaldate)
+
+sort(APC1$admidate)[1:10] #first 9 values are not correct
+APC1$admidate <-replace(APC1$admidate, which(APC1$admidate<"1997-01-01"), NA)
+#Values before 1997 are probably errors, dataset cannot be older than this
+
+#min(APC1$admidate, na.rm=T) #1997 to 2019.07.31
+#max(APC1$admidate, na.rm=T)
+
+#min(OP1$apptdate)           #2003 to 2019.07.31
+#max(OP1$apptdate)
+```
+
+```{r}
+#Keep only the minimum date
+AE7 <- AE1 %>% group_by(participant_id) %>% summarise(min(arrivaldate)) 
+APC7 <- APC1 %>% group_by(participant_id) %>% summarise(min(admidate)) 
+OP7 <- OP1 %>% group_by(participant_id) %>% summarise(min(apptdate)) 
+```
+
+```{r}
+#Merge all clinical datasets
+CD2 <- merge(IMD, APC7, by.x="participant_id", all.x=T)
+CD3 <- merge(CD2, OP7, by.x="participant_id", all.x=T)
+CD4 <- merge(CD3, AE7, by.x="participant_id", all.x=T)
+
+colnames(CD4) <- c("participant_id", "mindate_apc", "mindate_op", "mindate_ae")
+
+CD5 <- reshape(data=CD4, varying=c("mindate_ae", "mindate_op", "mindate_apc"), v.names="mindate", idvar="participant_id", direction="long")
+CD5 <- CD5[order(CD5$participant_id),]
+
+CD6 <- CD5 %>% group_by(participant_id) %>% summarise(min(mindate, na.rm=T))
+colnames(CD6) <- c("participant_id", "mindate")
+#length(which(is.na(CD6$mindate))) #tells me there are no na although there are, weird
+#weird error message but actually works fine 
+```
+
+```{r}
+#Keep only the year of first episode
+CD6$minyear <- format(as.Date(CD6$mindate, "%Y/%m/%d"), "%Y")
+#table(CD6$minyear)
+```
+
+```{r}
+#Merge with main datasets
+PD23 <- merge(PD22, CD6, by.x="participant_id", all.x=T)
+
+PD23$registration_date <- as.Date(PD23$registration_date)
+
+#range(na.omit(PD26$registration_date))
+#length(which(PD26$registration_date<2013)) #29 values are not correct
+PD23$registration_date <-replace(PD23$registration_date, which(PD23$registration_date<"2013-01-01"), NA)
+
+#Those who have a first event recorded before their year of birth...
+PD23$mindate <- replace(PD23$mindate, which(PD23$minyear<PD23$birth_year), NA)
+PD23$minyear <- replace(PD23$minyear, which(PD23$minyear<PD23$birth_year), NA)
+```
+
+```{r}
+#Keep the different mindate
+PD24 <- merge(PD23, CD4, by.x="participant_id", all.x=T)
+PD24$end_date <- as.Date("2019-07-31")
+PD24$start_date_ae <- as.Date("2007-04-01")
+PD24$start_date_apc <- as.Date("1997-01-01")
+PD24$start_date_op <- as.Date("2003-04-01")
+
+```
+
+```{r}
+PD25 <- PD24
+PD25$minmd <- format(as.Date(PD25$mindate, "%Y/%m/%d"), "%m/%d")
+
+PD25$dob <- rep(NA, nrow(PD25))
+for (i in 1:nrow(PD25)){
+  if (is.na(PD25[i,"mindate"])==T){
+    PD25[i,"dob"] <- as.Date(ISOdate(PD25[i,"birth_year"], 7, 1))
+  }
+  else if (PD25[i,"birth_year"]<PD25[i,"minyear"]) {
+    PD25[i,"dob"] <- as.Date(ISOdate(PD25[i,"birth_year"], 7, 1))
+  }
+  else if (PD25[i,"birth_year"]==PD25[i,"minyear"] & PD25[i,"minmd"]>"07-01"){
+    PD25[i,"dob"] <- as.Date(ISOdate(PD25[i,"birth_year"], 7, 1))
+  }
+  else if (PD25[i,"birth_year"]==PD25[i,"minyear"]  & PD25[i,"minmd"]<"07-01"){
+    PD25[i,"dob"] <- as.Date(ISOdate(PD25[i,"birth_year"], 1, 1))
+  }
+}
+PD25$dob <- as.Date(PD25$dob)
+
+#PD25[, c("participant_id", "birth_year", "dob","minyear", "mindate", "minmd", "death_date")]
+```
+
+
+```{r}
+#Calculate number of years of exposure; depends if patient died or not
+#Calculation is done so that the year of birth and/or death is counted as a full year
+PD26 <- PD25
+PD26$death_date <- as.Date(PD26$death_date)
+
+PD26$exp_year_AE <- rep(NA, nrow(PD26))
+for (i in 1:nrow(PD26)) {
+if (PD26[i,"birth_year"]<2007 && is.na(PD26[i,"death_year"])==T) {   PD26[i,"exp_year_AE"] <- PD26[i,"end_date"] - PD26[i,"start_date_ae"]
+} else if (PD26[i,"birth_year"]<2007 && is.na(PD26[i,"death_year"])==F) {
+  PD26[i,"exp_year_AE"] <- PD26[i,"death_date"] - PD26[i,"start_date_ae"]
+} else if (PD26[i,"birth_year"]>=2007 && is.na(PD26[i,"death_year"])==T) {
+  PD26[i,"exp_year_AE"] <- PD26[i,"end_date"] - PD26[i,"dob"]
+} else {
+  PD26[i,"exp_year_AE"] <- PD26[i,"death_date"] - PD26[i,"dob"]
+}
+}
+
+PD26$exp_year_APC <- rep(NA, nrow(PD26))
+for (i in 1:nrow(PD26)) {
+if (PD26[i,"birth_year"]<1997 && is.na(PD26[i,"death_year"])==T) {   PD26[i,"exp_year_APC"] <- PD26[i,"end_date"] - PD26[i,"start_date_apc"]
+} else if (PD26[i,"birth_year"]<1997 && is.na(PD26[i,"death_year"])==F) {
+  PD26[i,"exp_year_APC"] <- PD26[i,"death_date"] - PD26[i,"start_date_apc"]
+} else if (PD26[i,"birth_year"]>=1997 && is.na(PD26[i,"death_year"])==T) {
+  PD26[i,"exp_year_APC"] <- PD26[i,"end_date"] - PD26[i,"dob"]
+} else {
+  PD26[i,"exp_year_APC"] <- PD26[i,"death_date"] - PD26[i,"dob"]
+}
+}
+
+PD26$exp_year_OP <- rep(NA, nrow(PD26))
+for (i in 1:nrow(PD26)) {
+if (PD26[i,"birth_year"]<2003 && is.na(PD26[i,"death_year"])==T) {   PD26[i,"exp_year_OP"] <- PD26[i,"end_date"] - PD26[i,"start_date_op"]
+} else if (PD26[i,"birth_year"]<2003 && is.na(PD26[i,"death_year"])==F) {
+  PD26[i,"exp_year_OP"] <- PD26[i,"death_date"] - PD26[i,"start_date_op"]
+} else if (PD26[i,"birth_year"]>=2003 && is.na(PD26[i,"death_year"])==T) {
+  PD26[i,"exp_year_OP"] <- PD26[i,"end_date"] - PD26[i,"dob"]
+} else {
+  PD26[i,"exp_year_OP"] <- PD26[i,"death_date"] - PD26[i,"dob"]
+}
+}
+
+PD26[, c("participant_id", "birth_year", "mindate", "dob", "death_date", "exp_year_AE", "exp_year_APC", "exp_year_OP")]
+
+PD26$exp_year_AE <- PD26$exp_year_AE/365
+PD26$exp_year_APC <- PD26$exp_year_APC/365
+PD26$exp_year_OP <- PD26$exp_year_OP/365
+```
+
+```{r}
+#annualized costs/episodes
+PD27 <- PD26
+PD27$ann_cost_AE <- PD27$total_ae_cost/PD27$exp_year_AE
+PD27$ann_cost_APC <- PD27$total_apc_cost/PD27$exp_year_APC
+PD27$ann_cost_OP <- PD27$total_op_cost/PD27$exp_year_OP
+PD27$ann_epi_AE <- PD27$total_ae_episodes/PD27$exp_year_AE
+PD27$ann_epi_APC <- PD27$total_apc_episodes/PD27$exp_year_APC
+PD27$ann_epi_OP <- PD27$total_op_episodes/PD27$exp_year_OP
+#View(PD27)
+```
+
+```{r}
+#Diagnostics: are there any negative values?
+length(which(PD27$total_ae_cost<0))
+length(which(PD27$total_apc_cost<0))
+length(which(PD27$total_op_cost<0))
+length(which(PD27$total_ae_episodes<0))
+length(which(PD27$total_op_episodes<0))
+length(which(PD27$total_apc_episodes<0)) #no negative values here
+
+length(which(PD27$exp_year_AE<0))  #1
+length(which(PD27$exp_year_APC<0)) #0
+length(which(PD27$exp_year_OP<0))  #1
+
+PD27[which(PD27$exp_year_AE<0),] #000000000
+PD27[which(PD27$exp_year_OP<0),] #000000000: same proband
+#problem with this guy is: declared dead in 1998 but proband registered in 2017: will consider him alive (see before the algorithm above)
+
+#after recoding that one patient: everything ok
+```
+
+
+```{r}
+#non_zero variables for the new outcome variable (should work for both episodes and costs)
+PD27$non_zero_AE <- ifelse(PD27$ann_cost_AE>0, 1, 0)
+PD27$non_zero_APC <- ifelse(PD27$ann_cost_APC>0, 1, 0)
+PD27$non_zero_OP <- ifelse(PD27$ann_cost_OP>0, 1, 0)
+```
+
+
+#################################################################
+##################### 1. Patient population #####################
+#################################################################
+
+Table 1. Characteristics of the patient population
+
+```{r}
+#birth decades
+PD28 <- PD27
+birth_decade <- rep(NA, nrow(PD28))
+birth_decade[PD28$birth_year %in% c(1924, 1925, 1926, 1927, 1928, 1929)]<-"1920-1929"
+birth_decade[PD28$birth_year %in% c(1930:1939)]<-"1930-1939"
+birth_decade[PD28$birth_year %in% c(1940:1949)]<-"1940-1949"
+birth_decade[PD28$birth_year %in% c(1950:1959)]<-"1950-1959"
+birth_decade[PD28$birth_year %in% c(1960:1969)]<-"1960-1969"
+birth_decade[PD28$birth_year %in% c(1970:1979)]<-"1970-1979"
+birth_decade[PD28$birth_year %in% c(1980:1989)]<-"1980-1989"
+birth_decade[PD28$birth_year %in% c(1990:1999)]<-"1990-1999"
+birth_decade[PD28$birth_year %in% c(2000:2009)]<-"2000-2009"
+birth_decade[PD28$birth_year %in% c(2010:2019)]<-"2010-2019"
+PD28$birth_decade <- birth_decade
+```
+
+
+```{r}
+table(PD28$sex, useNA = "always")
+prop.table(table(PD28$sex, useNA = "always"))
+
+table(PD28$ethnicity, useNA = "always")
+prop.table(table(PD28$ethnicity, useNA = "always"))
+
+table(PD28$ethnos, useNA = "always")
+prop.table(table(PD28$ethnos, useNA = "always"))
+
+table(PD28$birth_decade, useNA = "always")
+prop.table(table(PD28$birth_decade, useNA = "always"))
+mean(PD28$birth_year)
+median(PD28$birth_year)
+
+table(PD28$imd_decile, useNA = "always")
+prop.table(table(PD28$imd_decile, useNA = "always"))
+
+table(PD28$family_members3 , useNA = "always")
+prop.table(table(PD28$family_members3, useNA = "always"))
+
+table(PD28$family_case_solved, useNA = "always")
+prop.table(table(PD28$family_case_solved, useNA = "always"))
+
+table(PD28$csf1V12 , useNA = "always")
+prop.table(table(PD28$csf1V12 , useNA = "always"))
+
+table(PD28$dead, useNA = "always")
+prop.table(table(PD28$dead, useNA = "always"))
+
+table(PD28$ethnosD, useNA = "always")
+prop.table(table(PD28$ethnosD, useNA = "always"))
+
+table(PD28$ethnicityD, useNA = "always")
+prop.table(table(PD28$ethnicityD, useNA = "always"))
+
+table(PD28$imd2, useNA = "always")
+prop.table(table(PD28$imd2, useNA = "always"))
+```
+
+
+```{r}
+#other possible date as proxy
+gen1 <- gen[,c("Participant Id", "Delivery Date", "Type", "Lab Sample Id")]
+gen2 <- distinct(gen1)
+colnames(gen2)<-c("participant_id", "delivery_date", "type", "sample_id")
+part3 <- part[,c("Participant Id", "Programme", "Participant Type")]
+colnames(part3) <- c("participant_id", "programme", "participant_type")
+gen3 <- merge(gen2, part3, by.x="participant_id", all.x=T)
+gen4 <- gen3%>%filter(programme=="Rare Diseases")
+gen5 <- gen4 %>% filter(participant_type=="Proband")
+
+nrow(gen5)                                     #34322 
+length(unique(gen5$participant_id))            #33401
+nrow(gen5)-length(unique(gen5$participant_id)) #921 duplicates
+
+gen6 <- gen5[,-c(5, 6)]
+table(gen6$type) #only 1: rare disease germline
+
+gen7 <- gen6 %>% group_by(participant_id) %>% filter(n()!=1)
+gen7b <- gen6 %>% group_by(participant_id) %>% filter(n()==1)
+nrow(gen7)+nrow(gen7b)     #34322: ok
+
+gen8 <- gen7 %>% group_by(participant_id) %>% filter(sample_id==sample_id) #all observations are kept
+length(unique(gen7$participant_id)) #857
+gen9 <- gen7 %>% group_by(participant_id) %>% summarise(min(delivery_date, na.rm=T))           #857
+colnames(gen9) <- c("participant_id", "delivery_date")
+gen7t <- gen7b[,-c(3, 4)]
+gen10 <- rbind(gen7t, gen9)
+nrow(gen7t)+nrow(gen9)     #33401: ok
+
+PD29 <- merge(PD28, gen10, by.x="participant_id", all.x=T)
+PD29$delivery_date <- as.Date(PD29$delivery_date)
+PD29$consent_date <- as.Date(PD29$consent_date)
+```
+
+
+```{r}
+PD30 <- PD29
+PD30$ttwgs_d <- difftime(PD30$delivery_date, PD30$mindate)
+PD30$ttwgs_c <- difftime(PD30$consent_date, PD30$mindate)
+#Time between the first episode = use of healthcare resources recorded by patient and the registration into the program
+#I am assuming the registration date is AFTER the first event: so the difference should be positive
+PD30$delivery_year <- format(as.Date(PD30$delivery_date, "%Y/%m/%d"), "%Y")
+PD30$consent_year <- format(as.Date(PD30$consent_date, "%Y/%m/%d"), "%Y")
+#View(PD30)  #32312, only probands
+
+#length(which(PD30$ttwgs_c<PD30$ttwgs_d))  #31977: consent before delivery
+#length(which(PD30$ttwgs_c>=PD30$ttwgs_d)) #226: delivery before consent?
+```
+
+
+```{r}
+#Filter to people born in or after 2015 = when the program started
+PD31 <- PD30 %>% filter(birth_year>=2015)
+nrow(PD31) #2168
+
+#Inspection
+#range(na.omit(PD31$delivery_date))
+#range(na.omit(PD31$consent_date))
+
+#table(PD31$region_handling, PD31$consent_year)
+#table(PD31$region_handling, PD31$delivery_year)
+#length(which(PD31$ttwgs_c<PD31$ttwgs_d))  #2154: consent before delivery
+#length(which(PD31$ttwgs_c>=PD31$ttwgs_d)) #0 delivery bef consent
+```
+
+```{r}
+#Getting rid of people who were already in the program when they had their first use of healthcare resources
+PD32d <- PD31 %>% filter(PD31$ttwgs_d >= 0)
+PD32c <- PD31 %>% filter(PD31$ttwgs_c >= 0)
+
+#It also got rid of all the NAs
+#nrow(PD32d) #2154
+#range(na.omit(PD32d$ttwgs_d)) #9 to 1645
+#nrow(PD32c) #2156
+#range(na.omit(PD32c$ttwgs_c)) #0 to 1345
+
+#length(which(PD32c$ttwgs_c==0))
+#PD32c[which(PD32c$ttwgs_c==0),c("participant_id", "birth_year", "ttwgs_c", "ttwgs_d")]
+
+#med <- PD32c %>% group_by(region_handling) %>% summarise(counts = n(), median = median(ttwgs_c), min = min(ttwgs_c), max=max(ttwgs_c)) #West London is indeed the minimum
+#PD32c[which(PD32c$region_handling=="West London"),c("participant_id", "registration_date", "consent_date", "birth_year", "ttwgs_c", "ttwgs_d")]
+```
+
+
+```{r}
+#For availability of family data analysis
+#reminder : 0: 1 or 2 family members; 1: 3 or more
+#range(PD25$family_members) #originally: 1 to 11
+
+PD33 <- PD30
+PD33$family_members2 <- ifelse(PD30$family_members>=3, "3+", "<3")
+```
+
+```{r}
+PD33$birth_year2 <- PD33$birth_year-min(PD33$birth_year)
+#range(PD33$birth_year2)
+```
+
+```{r}
+PD33$csf2 <- ifelse(PD33$csf1V12=="yes", "1", "0")
+#table(PD33$csf1V12)
+#table(PD33$csf2)
+PD33$csf2 <- as.numeric(PD33$csf2)
+```
+
+```{r}
+#Length of stay: difference in days between epistart and epiend
+APC8 <- APC1[, c("participant_id", "epidur")]
+APC9 <- APC8 %>% group_by(participant_id) %>% summarise(sum(epidur))
+PD34 <- merge(PD33, APC9, by.x="participant_id", all.x=T)
+colnames(PD34)[91] <- "epidur_apc"
+PD34$ann_epidur_apc <- PD34$epidur_apc/PD27$exp_year_APC
+```
+
+
+
+
+```{r}
+#Correlation test between variables
+#is there correlation? all are categorical variables so chisq.test 
+chi.ei <- chisq.test(table(PD30$ethnicity, PD30$imd_decile)) #correlation
+chi.ei
+chi.eDi2 <- chisq.test(table(PD30$ethnicityD, PD30$imd2))      #correlation
+chi.eDi2
+
+chi.eDr <- chisq.test(table(PD30$ethnicityD, PD30$region_handling))   #correlation
+chisq.test(table(PD30$ethnicity, PD30$region_handling))    #correlation?
+chisq.test(PD30$imd_decile, PD30$region_handling)  #correlation?
+chi.i2r <- chisq.test(table(PD30$imd2, PD30$region_handling))        #correlation?
+
+chi.egi <- chisq.test(table(PD30$ethnos, PD30$imd_decile)) #correlation
+chi.egDi2 <- chisq.test(table(PD30$ethnosD, PD30$imd2))      #correlation
+chi.egi
+chi.egDi2
+
+#chi.egDr <- chisq.test(table(PD30$ethnosD, PD30$region_handling)) ?
+#chisq.test(table(PD30$ethnos, PD30$region_handling))  ?
+
+#Too many categories, so cannot calculate the stat?
+#Could calculate CI for Cramer's V with rcompanion package (cannot install)
+```
+
+```{r}
+#Both indicate the same results: 
+#red is negative so negative correlation=there are less BAME than expected in Least deprived 30%
+#blue is positive so positive correlation=there are more BAME than expected in most deprived 30%
+corrplot(chi.eDi2$residuals, is.cor=F)
+corrplot(chi.egDi2$residuals, is.cor=F)
+
+#To obtain the exact values of Pearson residuals:
+round(chi.eDi2$residuals, 3)
+round(chi.egDi2$residuals, 3)
+#Interestingly, there is slightly less correlation when using ethnosD
+```
+
+```{r}
+#Lots of BAME in North Thames
+corrplot(chi.eDr$residuals, is.cor=F)
+corrplot(chi.egDr$residuals, is.cor=F)
+
+#LD30% and MD30% are definitely in very different regions
+corrplot(chi.i2r$residuals, is.cor=F)
+```
+
+
+```{r}
+#Strength of the correlation? between categorical variables, Cramer's V
+assocstats(table(PD30$ethnicity, PD30$imd_decile)) #0.105
+assocstats(table(PD30$ethnicityD, PD30$imd2))      #0.252
+assocstats(table(PD30$ethnicityD, PD30$region_handling))   #0.233
+assocstats(table(PD30$ethnicity, PD30$region_handling))    #0.153
+#assocstats(table(PD30$imd_decile, PD30$region_handling))   #NA
+#assocstats(table(PD30$imd2, PD30$region_handling))         #NA
+
+assocstats(table(PD30$ethnos, PD30$imd_decile)) #0.118
+assocstats(table(PD34$ethnosD, PD34$imd2))      #0.238
+#assocstats(table(PD30$ethnosD, PD30$region_handling)) ?
+#assocstats(table(PD30$ethnos, PD30$region_handling))  ?
+
+table(PD34$imd2, PD34$ethnosD)
+round(prop.table(table(PD34$imd2, PD34$ethnosD), margin=1)*100, 2)
+
+table(PD34$region_handling, PD34$imd2)
+round(prop.table(table(PD34$region_handling, PD34$imd2), margin=1)*100, 2)
+```
+
+```{r}
+length(which(PD30$ann_epi_AE==0))
+length(which(PD30$ann_epi_APC==0))
+length(which(PD30$ann_epi_OP==0))
+
+length(which(PD30$ann_cost_AE==0))
+length(which(PD30$ann_cost_APC==0)) #471
+length(which(PD30$ann_cost_OP==0))
+
+length(which(PD30$ann_cost_APC==0))/length(PD30$ann_cost_APC) *100
+length(PD30$ann_cost_APC)
+```
+
+```{r}
+length(which(!is.na(PD30$csfV12)==T))
+length(which(is.na(PD30$family_members3)))
+```
+
+```{r}
+table(PD31$region_handling)
+```
+
+
+```{r}
+#Patients with 0 APC costs
+PD35 <- PD34[which(PD30$ann_cost_APC==0), ]
+APC10 <- APC[,c("participant_id", "hrgnhs", "sushrg", "diag_01")]
+APC11 <- merge(PD35, APC10, by.x="participant_id", all.x=T)
+length(unique(APC11$participant_id)) #2 duplicate IDs
+
+table(APC11$hrgnhs)
+table(APC11$sushrg)
+table(APC11$diag_01)
+colnames(APC)
+
+APC12 <- APC11[which(APC11$sushrg=="N02"|APC11$sushrg=="N03"), ]
+table(APC12$diag_01) #all Z380: ICD 10 for 'singleton, born in hospital'
+```
+
+
+```{r}
+#Patients with no HES data
+PD21b <- PD20[(PD20$total_cost==0 & PD20$total_episodes==0),]
+
+table(PD21b$sex, useNA = "always")
+table(PD34$sex, useNA = "always")
+prop.test(x=c(527, 15654),n=c(1224, 32312))
+
+table(PD21b$ethnosD, useNA = "always")
+table(PD34$ethnosD, useNA = "always")
+prop.test(x=c(46, 4586),n=c(1224, 32312))
+
+table(PD21b$ethnicityD, useNA = "always")
+table(PD34$ethnicityD, useNA = "always")
+prop.test(x=c(81, 4987),n=c(1224, 32312))
+
+table(PD21b$imd2, useNA = "always")
+table(PD34$imd2, useNA = "always")
+prop.table(table(PD34$imd2, useNA = "always"))
+prop.test(x=c(527, 15654),n=c(1224, 32312))
+```
+
+```{r}
+#Reduced sample for time to WGS
+table(PD32c$sex, useNA = "always")
+table(PD34$sex, useNA = "always")
+prop.test(x=c(919, 15654),n=c(1224, 32312))
+
+table(PD32c$ethnosD, useNA = "always")
+table(PD34$ethnosD, useNA = "always")
+prop.test(x=c(360, 4586),n=c(1224, 32312))
+
+table(PD32c$ethnicityD, useNA = "always")
+table(PD34$ethnicityD, useNA = "always")
+prop.test(x=c(412, 4987),n=c(1224, 32312))
+
+table(PD32c$imd2, useNA = "always")
+table(PD34$imd2, useNA = "always")
+prop.table(table(PD32c$imd2, useNA = "always"))
+prop.table(table(PD34$imd2, useNA = "always"))
+chisq.test(c(548, 802, 779), c(9298, 12386, 10324))
+```
+
+```{r}
+#Patients with NA for CSF
+PD34b <- PD34[(is.na(PD34$csf2)),]
+
+table(PD34b$sex, useNA = "always")
+table(PD34$sex, useNA = "always")
+prop.test(x=c(1125, 15654),n=c(2368, 32312))
+
+table(PD34b$ethnosD, useNA = "always")
+table(PD34$ethnosD, useNA = "always")
+prop.test(x=c(357, 4586),n=c(2368, 32312))
+
+table(PD34b$ethnicityD, useNA = "always")
+table(PD34$ethnicityD, useNA = "always")
+prop.test(x=c(394, 4987),n=c(2368, 32312))
+
+table(PD34b$imd2, useNA = "always")
+table(PD34$imd2, useNA = "always")
+prop.test(x=c(800, 9298), n=c(2368, 32312))
+prop.test(x=c(922, 12386), n=c(2368, 32312))
+prop.test(x=c(625, 9298), n=c(2368, 32312))
+```
