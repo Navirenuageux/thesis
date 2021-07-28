@@ -9,60 +9,45 @@ output: html_document
 
 ############# Step 1: Number of episodes ############# 
 
+```{r echo=F}
+#t.test
+PD34 %>% group_by(sex) %>% summarise(mean(na.omit(ann_epi_APC )))
+PD34 %>% group_by(sex) %>% summarise(mean(na.omit(ann_epi_AE )))
+PD34 %>% group_by(sex) %>% summarise(mean(na.omit(ann_epi_OP )))
 
-```{r}
-#We use PD30 (see Cost outcomes): got rid of structural 0 costs/episodes patients where 0 are due to region_handling=Northern Ireland, Scotland or Wales n=32614
+PD34 %>% group_by(ethnosD) %>% summarise(mean(na.omit(ann_epi_APC )))
+PD34 %>% group_by(ethnosD) %>% summarise(mean(na.omit(ann_epi_AE )))
+PD34 %>% group_by(ethnosD) %>% summarise(mean(na.omit(ann_epi_OP )))
 
-#Who has 0 episodes
-length(which(is.na(PD30$total_episodes)==T))  #0 NAs
-length(which(PD30$total_episodes==0)) #369 patients with 0 episodes (1.13%)
-```
+PD34 %>% group_by(ethnicityD) %>% summarise(mean(na.omit(ann_epi_APC )))
+PD34 %>% group_by(ethnicityD) %>% summarise(mean(na.omit(ann_epi_AE )))
+PD34 %>% group_by(ethnicityD) %>% summarise(mean(na.omit(ann_epi_OP )))
 
-
-```{r}
-#test of normality: anderson-darling test for samples over 5000
-ad.test(PD30$ann_epi)
-#Significant: not normally distributed
-```
-
-```{r}
-#test of differences between sexes
-wilcox.test(data=PD30, ann_epi ~ sex)
-#Significant
+PD34 %>% group_by(imd2) %>% summarise(mean(na.omit(ann_epi_APC )))
+PD34 %>% group_by(imd2) %>% summarise(mean(na.omit(ann_epi_AE )))
+PD34 %>% group_by(imd2) %>% summarise(mean(na.omit(ann_epi_OP )))
 ```
 
 ```{r echo=F}
-#Kruskal-Wallis test: ethnicity
-kruskal.test(data=PD30, ann_epi ~ as.factor(ethnicity))
-pwt5 <- pairwise.wilcox.test(PD30$ann_epi, PD30$ethnicity, p.adjust.method = "BH")
-pwt5$p.value
+#t.test: sex 
+t.test(ann_epi_APC ~ sex, data=PD34)
+t.test(ann_epi_AE ~ sex, data=PD34)
+t.test(ann_epi_OP ~ sex, data=PD34)
 
-kruskal.test(data=PD30, ann_epi ~ as.factor(ethnos))
-pwt5b <- pairwise.wilcox.test(PD30$ann_epi, PD30$ethnos, p.adjust.method = "BH")
-pwt5b$p.value
+t.test(ann_epi_APC ~ ethnosD, data=PD34)
+t.test(ann_epi_AE ~ ethnosD, data=PD34)
+t.test(ann_epi_OP ~ ethnosD, data=PD34)
 
-#Significant: lots of levels
-```
+t.test(ann_epi_APC ~ ethnicityD, data=PD34)
+t.test(ann_epi_AE ~ ethnicityD, data=PD34)
+t.test(ann_epi_OP ~ ethnicityD, data=PD34)
 
-```{r}
-#test of differences White vs BAME
-wilcox.test(data=PD30, ann_epi ~ ethnicityD)
-wilcox.test(data=PD30, ann_epi ~ ethnosD)
-#Significant
-```
-
-```{r echo=F}
-#Kruskal-Wallis test: imd_decile: sign
-kruskal.test(data=PD30, ann_epi ~ imd_decile)
-pwt1 <- pairwise.wilcox.test(PD30$ann_epi, PD30$imd_decile, p.adjust.method = "BH")
-pwt1$p.value
-```
-
-```{r echo=F}
-#Kruskal-Wallis test: imd2: sign
-kruskal.test(data=PD30, ann_epi ~ imd2)
-pwt2 <- pairwise.wilcox.test(PD30$ann_epi, PD30$imd2, p.adjust.method = "BH")
-pwt2$p.value
+aov_apc <- aov(ann_epi_APC ~ imd2, data=PD34)
+summary(aov_apc)
+aov_ae <- aov(ann_epi_AE ~ imd2, data=PD34)
+summary(aov_ae)
+aov_op <- aov(ann_epi_OP ~ imd2, data=PD34)
+summary(aov_op)
 ```
 
 
@@ -115,42 +100,41 @@ chisq.test(PD31$imd2, PD31$dead)
 
 ############# Step 3: Family case solved ############# 
 
+```{r}
+prop.table(table(PD34$sex, PD34$csf2), margin=1)
+prop.table(table(PD34$imd2, PD34$csf2), margin=1)
+prop.table(table(PD34$ethnosD, PD34$csf2), margin=1)
+prop.table(table(PD34$ethnicityD, PD34$csf2), margin=1)
 
-
-```{r echo=F}
-table(PD26$family_case_solved, useNA = "always")
-round(prop.table(table(PD26$family_case_solved, useNA = "always"))*100, 2)
-table(PD26$csf1V12, useNA = "always")
-round(prop.table(table(PD26$csf1V12, useNA = "always"))*100, 2)
+prop.table(table(PD34$sex, PD34$csf2, useNA = "always"), margin=1)
+prop.table(table(PD34$imd2, PD34$csf2, useNA = "always"), margin=1)
+prop.table(table(PD34$ethnosD, PD34$csf2, useNA = "always"), margin=1)
+prop.table(table(PD34$ethnicityD, PD34$csf2, useNA = "always"), margin=1)
 ```
+
 
 ```{r}
 #Test of proportions of family case solved between sexes
-chisq.test(PD26$sex, PD26$family_case_solved)    
-chisq.test(PD26$sex, PD26$csf1V12)  
+chisq.test(PD34$sex, PD34$csf2)    
 #Not significant
 ```
 
 ```{r echo=F}
 #Test of proportions of family case solved between ethnicity groups
-chisq.test(PD26$ethnicity, PD26$family_case_solved)    
-chisq.test(PD26$ethnicityD, PD26$family_case_solved)   
-chisq.test(PD26$ethnicity, PD26$csf1V12)    
-chisq.test(PD26$ethnicityD, PD26$csf1V12) 
+chisq.test(PD34$ethnosD, PD34$csf2)   
+chisq.test(PD34$ethnicityD, PD34$csf2) 
 #All significant
 ```
 
 ```{r echo=F}
 #Test of proportions of family case solved between deprivation deciles
-chisq.test(PD26$imd_decile, PD26$family_case_solved)  #no 
-chisq.test(PD26$imd2, PD26$family_case_solved)        #yes
-chisq.test(PD26$imd_decile, PD26$csf1V12)             #no
-chisq.test(PD26$imd2, PD26$csf1V12)                   #yes
+
+chisq.test(PD34$imd2, PD34$csf2)                   #yes
 ```
 
 
 #################################################################
-######################### 3. Regression #########################
+######################### 2. Regression #########################
 #################################################################
 
 ############# Step 1: Number of episodes ############# 
