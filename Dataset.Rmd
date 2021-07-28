@@ -2,15 +2,8 @@
 title: "Dataset mp"
 output: html_document
 ---
-#~|[]{}\
-
 ```{r include = F}
-#remotes::install_github("brechtdv/rineq")
-install.packages("https://artifactory.gel.zone/artifactory/cran/src/contrib/survminer_0.4.9.tar.gz", repos=NULL, type="source")
-#install.packages("survminer", lib = "/pherscu/R_packages")
-#install.packages("https://artifactory.gel.zone/artifactory/cran/src/contrib/multilevelTools_0.1.1.tar.gz", repos=NULL, type="source")
 
-#library(bbmle)
 library(tidyr, lib.loc = "/usr/local/lib/R/site-library")
 library(magrittr, lib.loc = "/usr/local/lib/R/site-library")
 library(lme4, lib.loc = "/usr/local/lib/R/site-library")
@@ -20,16 +13,14 @@ library(dplyr, lib.loc = "/usr/local/lib/R/site-library")
 library(MASS, lib.loc = "/usr/lib/R/library")
 library(nnet, lib.loc = "/usr/lib/R/library")
 library(ggplot2, lib.loc = "/usr/local/lib/R/site-library")
-#library(ggpubr)
 library(readxl, lib.loc = "/usr/local/lib/R/site-library")
 library(openxlsx, lib.loc = "/usr/local/lib/R/site-library")
 library(survival, lib.loc = "/usr/lib/R/library")
-#library(survminer)
+library(survminer)
 library(nortest, lib.loc = "/usr/local/lib/R/site-library")
 library(reshape2, lib.loc = "/usr/local/lib/R/site-library")
 library(car, lib.loc = "/usr/local/lib/R/site-library")
 library(tibble, lib.loc = "/usr/local/lib/R/site-library")
-library(AER)
 library(broom, lib.loc = "/usr/local/lib/R/site-library")
 library(vcd, lib.loc = "/usr/local/lib/R/site-library")
 #library(corrplot)
@@ -37,14 +28,14 @@ library(coxme, lib.loc = "/usr/local/lib/R/site-library")
 ```
 
 ```{r include=FALSE}
-#load("/home/pherscu/emergency_care.Rda")
-#load("/home/pherscu/inpatient_care.Rda")
-#load("/home/pherscu/outpatient_care.Rda")
+load("/home/pherscu/emergency_care.Rda")
+load("/home/pherscu/inpatient_care.Rda")
+load("/home/pherscu/outpatient_care.Rda")
 
-#PD <- patient_data
+PD <- patient_data
 AE <- emergency_care
 APC <- inpatient_care
-#ACC <- ACC_costed
+ACC <- ACC_costed
 OP <- outpatient_care
 
 gmceq <- read_excel("/home/pherscu/gmc_exit_questionnaire_2021-05-20_11-58-16.xlsx")
