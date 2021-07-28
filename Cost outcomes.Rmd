@@ -6,56 +6,50 @@ output: html_document
 #################### 1. Mean differences ########################
 #################################################################
 
+```{r echo=F}
+#t.test
+PD34 %>% group_by(sex) %>% summarise(mean(na.omit(ann_cost_APC )))
+PD34 %>% group_by(sex) %>% summarise(mean(na.omit(ann_cost_AE )))
+PD34 %>% group_by(sex) %>% summarise(mean(na.omit(ann_cost_OP )))
 
-```{r}
-#Test if the data is normally distributed: Anderson darling test for samples over 5000
-ad.test(as.numeric(PD14$total_cost))
-#p value < 0.05: not normally distributed
+PD34 %>% group_by(ethnosD) %>% summarise(mean(na.omit(ann_cost_APC )))
+PD34 %>% group_by(ethnosD) %>% summarise(mean(na.omit(ann_cost_AE )))
+PD34 %>% group_by(ethnosD) %>% summarise(mean(na.omit(ann_cost_OP )))
+
+PD34 %>% group_by(ethnicityD) %>% summarise(mean(na.omit(ann_cost_APC )))
+PD34 %>% group_by(ethnicityD) %>% summarise(mean(na.omit(ann_cost_AE )))
+PD34 %>% group_by(ethnicityD) %>% summarise(mean(na.omit(ann_cost_OP )))
+
+PD34 %>% group_by(imd2) %>% summarise(mean(na.omit(ann_cost_APC )))
+PD34 %>% group_by(imd2) %>% summarise(mean(na.omit(ann_cost_AE )))
+PD34 %>% group_by(imd2) %>% summarise(mean(na.omit(ann_cost_OP )))
 ```
 
 ```{r echo=F}
-#Wilcoxon test: sex (2 groups)
-wilcox.test(total_cost ~ sex, data=PD14)
-#borderline significant
-```
+#t.test: sex (2 groups)
+t.test(ann_cost_APC ~ sex, data=PD34)
+t.test(ann_cost_AE ~ sex, data=PD34)
+t.test(ann_cost_OP ~ sex, data=PD34)
 
-```{r echo=F}
-#Kruskal-Wallis test: Ethnicity (bcs many levels)
-kruskal.test(data=PD14, total_cost ~ ethnicity)
-pwt6 <- pairwise.wilcox.test(PD14$total_cost, PD14$ethnicity, p.adjust.method = "BH")
-round(pwt6$p.value, 3)
+t.test(ann_cost_APC ~ ethnosD, data=PD34)
+t.test(ann_cost_AE ~ ethnosD, data=PD34)
+t.test(ann_cost_OP ~ ethnosD, data=PD34)
 
-#Significant, because of Unknown and Other variables: not very helpful
-```
+t.test(ann_cost_APC ~ ethnicityD, data=PD34)
+t.test(ann_cost_AE ~ ethnicityD, data=PD34)
+t.test(ann_cost_OP ~ ethnicityD, data=PD34)
 
-```{r echo=F}
-#Wilcoxon test: ethnicityD (2 groups)
-wilcox.test(total_cost ~ ethnicityD, data=PD14)
-#Not significant
-```
-
-```{r echo=F}
-#Kruskal-Wallis test: imd_decile
-kruskal.test(data=PD14, total_cost ~ imd_decile)
-#Significant
-
-pwt8 <- pairwise.wilcox.test(PD14$total_cost, PD14$imd_decile, p.adjust.method = "BH")
-round(pwt8$p.value, 2)
-#Significant: difficult to read, extremes seem to be significant
-```
-
-```{r}
-#imd2: Kruskal-Wallis test (3 groups)
-kruskal.test(data=PD14, total_cost ~ imd2)
-#Significant
-pwt9 <- pairwise.wilcox.test(PD14$total_cost, PD14$imd2, p.adjust.method = "BH")
-round(pwt9$p.value, 5)
-#All significant
+aov_apc <- aov(ann_cost_APC ~ imd2, data=PD34)
+summary(aov_apc)
+aov_ae <- aov(ann_cost_AE ~ imd2, data=PD34)
+summary(aov_ae)
+aov_op <- aov(ann_cost_OP ~ imd2, data=PD34)
+summary(aov_op)
 ```
 
 
 #################################################################
-########################## 3. Regression ########################
+########################## 2. Regression ########################
 #################################################################
 
 
